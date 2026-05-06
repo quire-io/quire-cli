@@ -66,4 +66,4 @@ Open an issue to discuss before sending a PR.
 
 ## License
 
-TBD (will be MIT or Apache-2.0 — finalized before first publish).
+[ISC](LICENSE) © Potix Corporation
