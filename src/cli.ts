@@ -14,6 +14,7 @@ import { registerLogoutCommand } from "./commands/logout.js";
 import { registerMineCommand } from "./commands/mine.js";
 import { registerOrgCommand } from "./commands/org.js";
 import { registerProjectCommand } from "./commands/project.js";
+import { registerResolveCommand } from "./commands/resolve.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerSublistCommand } from "./commands/sublist.js";
 import { registerTagCommand } from "./commands/tag.js";
@@ -70,6 +71,7 @@ registerCommentCommand(program);
 registerChatCommand(program);
 registerDocCommand(program);
 registerInsightCommand(program);
+registerResolveCommand(program);
 
 program.addHelpText(
   "after",
@@ -107,7 +109,10 @@ Comments / chats / docs / insights:
   quire doc list <project>     List documents / doc get <id>
   quire insight list <project> List insights / insight get <id>
 
-Resolve URL → resource (Phase 4.5) and write commands (Phase 5) are TODO — see PLAN.md.
+URL resolver:
+  quire resolve <url>          Paste any Quire URL, get the typed resource back
+
+Write commands (Phase 5) are TODO — see PLAN.md.
 `,
 );
 
