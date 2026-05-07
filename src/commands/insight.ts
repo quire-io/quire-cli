@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { resolveColor } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
@@ -7,8 +8,29 @@ import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
 import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
+import { resolveTextInput } from "../util/text-input.js";
 
 const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
+
+function normalizeInsightColor(input: string | undefined): string | undefined {
+  if (input === undefined) return undefined;
+  const code = resolveColor(input);
+  if (code === undefined) {
+    throw new ValidationError(
+      `Color "${input}" is not a recognized palette name or code. Use a name like 'red'/'blue' or a 2-digit code '00'..'57'.`,
+    );
+  }
+  return code;
+}
+
+const INSIGHT_FIELDS = [
+  { label: "Name", get: (i: { nameText?: string; name: string }) => i.nameText ?? i.name },
+  { label: "ID", get: (i: { id: string }) => i.id },
+  { label: "OID", get: (i: { oid: string }) => i.oid },
+  { label: "Description", get: (i: { descriptionText?: string }) => i.descriptionText },
+  { label: "Icon color", get: (i: { iconColor?: string }) => i.iconColor },
+  { label: "URL", get: (i: { url?: string }) => i.url },
+];
 
 export function registerInsightCommand(program: Command): void {
   const insight = program.command("insight").description("Quire insights.");
@@ -38,16 +60,97 @@ export function registerInsightCommand(program: Command): void {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const i = await client.getInsight(id);
-      renderObject(i, root, {
-        fields: [
-          { label: "Name", get: (i) => i.nameText ?? i.name },
-          { label: "ID", get: (i) => i.id },
-          { label: "OID", get: (i) => i.oid },
-          { label: "Description", get: (i) => i.descriptionText },
-          { label: "URL", get: (i) => i.url },
-        ],
-        toId: (i) => i.oid,
+      renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
+    });
+
+  insight
+    .command("create <project>")
+    .description("Create an insight inside a project.")
+    .requiredOption("--name <name>", "Insight name (required)")
+    .option("--id <id>", "Caller-supplied id (must pass Quire's isValidId)")
+    .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
+    .option("--icon-color <color>", "Color: name like 'red'/'blue' or 2-digit code")
+    .option("--image <url>", "Icon image URL")
+    .action(async (project: string, cmdOpts: {
+      name: string; id?: string; description?: string; iconColor?: string; image?: string;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
+      const iconColor = cmdOpts.iconColor !== undefined ? normalizeInsightColor(cmdOpts.iconColor) : undefined;
+      const i = await client.createInsight("project", projectOid, {
+        name: cmdOpts.name,
+        ...(cmdOpts.id !== undefined ? { id: cmdOpts.id } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(iconColor !== undefined ? { iconColor } : {}),
+        ...(cmdOpts.image !== undefined ? { image: cmdOpts.image } : {}),
       });
+      renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
+    });
+
+  insight
+    .command("update <oid>")
+    .description("Update an insight.")
+    .option("--name <name>")
+    .option("--description <text>", "'-' = stdin, '@file' = file")
+    .option("--icon-color <color>")
+    .option("--image <url>")
+    .option("--archive", "Archive the insight")
+    .option("--unarchive", "Unarchive the insight")
+    .action(async (oid: string, cmdOpts: {
+      name?: string; description?: string; iconColor?: string; image?: string;
+      archive?: boolean; unarchive?: boolean;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      if (cmdOpts.archive === true && cmdOpts.unarchive === true) {
+        throw new ValidationError("Cannot combine --archive and --unarchive.");
+      }
+      const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
+      const iconColor = cmdOpts.iconColor !== undefined ? normalizeInsightColor(cmdOpts.iconColor) : undefined;
+      const body: { name?: string; description?: string; iconColor?: string; image?: string; archived?: boolean } = {};
+      if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
+      if (description !== undefined) body.description = description;
+      if (iconColor !== undefined) body.iconColor = iconColor;
+      if (cmdOpts.image !== undefined) body.image = cmdOpts.image;
+      if (cmdOpts.archive === true) body.archived = true;
+      if (cmdOpts.unarchive === true) body.archived = false;
+      if (Object.keys(body).length === 0) {
+        throw new ValidationError("`insight update` requires at least one change-flag.");
+      }
+      const i = await client.updateInsight(oid, body);
+      renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
+    });
+
+  insight
+    .command("delete <oid>")
+    .description("Delete an insight. Prompts unless --yes.")
+    .action(async (oid: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      await confirmDestructive({
+        question: `Delete insight ${oid}? Run \`quire insight undo-remove ${oid}\` (or \`quire undo insight ${oid}\`) to restore.`,
+        yes: root.yes,
+      });
+      await client.deleteInsight(oid);
+      if (root.json === true) {
+        process.stdout.write(`${JSON.stringify({ oid, deleted: true })}\n`);
+      } else if (root.quiet === true) {
+        process.stdout.write(`${oid}\n`);
+      } else {
+        process.stderr.write(`Deleted insight ${oid}.\n`);
+      }
+    });
+
+  insight
+    .command("undo-remove <oid>")
+    .description("Restore a deleted insight.")
+    .action(async (oid: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const i = await client.undoRemoveInsight(oid);
+      renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
     });
 
   // -------- Custom field definitions on insights (Phase 5.3 slice C) --------

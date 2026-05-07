@@ -20,6 +20,7 @@ import { registerStatusCommand } from "./commands/status.js";
 import { registerSublistCommand } from "./commands/sublist.js";
 import { registerTagCommand } from "./commands/tag.js";
 import { registerTaskCommand } from "./commands/task.js";
+import { registerUndoCommand } from "./commands/undo.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
@@ -74,6 +75,7 @@ registerDocCommand(program);
 registerInsightCommand(program);
 registerResolveCommand(program);
 registerColorsCommand(program);
+registerUndoCommand(program);
 
 program.addHelpText(
   "after",
@@ -170,6 +172,24 @@ Comments (write):
   quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file)
   quire comment update <oid>              Update --text and/or --pin / --unpin
   quire comment delete <oid>              Delete a comment (prompts unless --yes)
+
+Chats / docs / insights (write):
+  quire chat create <project>             --name [--description / --partner]
+  quire chat update <oid>                 [--name / --description / --archive / --unarchive / --add-follower / --remove-follower]
+  quire chat delete <oid>                 (prompts unless --yes)
+  quire chat undo-remove <oid>
+  quire chat comment add <chat-id>        --text [--pin]
+  quire doc create <project>              --name [--description]
+  quire doc update <oid>                  [--name / --description / --archive / --unarchive]
+  quire doc delete <oid>                  (prompts unless --yes)
+  quire doc undo-remove <oid>
+  quire insight create <project>          --name [--id / --description / --icon-color / --image]
+  quire insight update <oid>              [--name / --description / --icon-color / --image / --archive / --unarchive]
+  quire insight delete <oid>              (prompts unless --yes)
+  quire insight undo-remove <oid>
+
+Generic undo:
+  quire undo <kind> <oid>                 kind = task | chat | comment | document | insight | sublist
 
 URL resolver:
   quire resolve <url>          Paste any Quire URL, get the typed resource back
