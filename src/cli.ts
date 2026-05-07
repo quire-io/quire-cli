@@ -7,8 +7,10 @@ import { Command } from "commander";
 
 import { registerLoginCommand } from "./commands/login.js";
 import { registerLogoutCommand } from "./commands/logout.js";
+import { registerMineCommand } from "./commands/mine.js";
 import { registerOrgCommand } from "./commands/org.js";
 import { registerProjectCommand } from "./commands/project.js";
+import { registerTaskCommand } from "./commands/task.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
@@ -52,23 +54,34 @@ registerLogoutCommand(program);
 registerWhoamiCommand(program);
 registerOrgCommand(program);
 registerProjectCommand(program);
+registerTaskCommand(program);
+registerMineCommand(program);
 
 program.addHelpText(
   "after",
   `
 Auth:
-  quire login              Sign in via OAuth (loopback + PKCE)
-  quire logout             Remove the local credentials file
-  quire whoami             Show the signed-in user
+  quire login                  Sign in via OAuth (loopback + PKCE)
+  quire logout                 Remove the local credentials file
+  quire whoami                 Show the signed-in user
 
-Read commands:
-  quire org list           List your organizations
-  quire org get <id>       Show one organization
-  quire project list       List projects you can see (or --org <id> to scope)
-  quire project get <id>   Show one project
-  quire project members <id>  List a project's members
+Orgs / projects:
+  quire org list               List your organizations
+  quire org get <id>           Show one organization
+  quire project list           List projects you can see (or --org <id> to scope)
+  quire project get <id>       Show one project
+  quire project members <id>   List a project's members
 
-Task / search / write commands (Phase 4.2+) are still TODO — see PLAN.md.
+Tasks:
+  quire task list <project>    List tasks in a project
+  quire task get <id>          Show task details (id = OID, slug/#N, or URL)
+  quire task tree <id>         Render the recursive subtree (default depth 3)
+  quire task search <query>    Search tasks; scope with --project / --org / --folder
+  quire task subtasks <id>     List a task's direct subtasks
+  quire task comments <id>     List a task's comments
+  quire mine                   List tasks assigned to me; scope with --project / --org / --all-orgs
+
+Tag / sublist / status / chat / doc / insight commands (Phase 4.3+) are TODO — see PLAN.md.
 `,
 );
 
