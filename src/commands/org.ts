@@ -25,6 +25,35 @@ export function registerOrgCommand(program: Command): void {
     });
 
   org
+    .command("limit <id>")
+    .description("Show API rate-limit usage for an organization.")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await client.resolveOrgOid(id);
+      const limit = await client.getRateLimit(oid);
+
+      const formatBucket = (b: { limit: number; used: number; remaining: number; reset: number }): string => {
+        // Quire's `expiresAt` is documented in epoch ms; assume `reset` follows
+        // the same convention. If a Date round-trips to year 1970, fall back to
+        // treating the number as seconds.
+        const isoMs = new Date(b.reset).toISOString();
+        const iso = isoMs.startsWith("1970") ? new Date(b.reset * 1000).toISOString() : isoMs;
+        return `${b.used} / ${b.limit} used (${b.remaining} remaining, resets ${iso})`;
+      };
+
+      renderObject(limit, root, {
+        fields: [
+          { label: "Organization", get: (l) => l.organization },
+          { label: "Plan", get: (l) => l.plan },
+          { label: "Per minute", get: (l) => formatBucket(l.minute) },
+          { label: "Per hour", get: (l) => formatBucket(l.hour) },
+        ],
+        toId: (l) => l.organization,
+      });
+    });
+
+  org
     .command("get <id>")
     .description("Show details for one organization. <id> = OID, slug, or full URL.")
     .action(async (id: string) => {

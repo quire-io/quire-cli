@@ -5,11 +5,18 @@ import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
 
+import { registerChatCommand } from "./commands/chat.js";
+import { registerCommentCommand } from "./commands/comment.js";
+import { registerDocCommand } from "./commands/doc.js";
+import { registerInsightCommand } from "./commands/insight.js";
 import { registerLoginCommand } from "./commands/login.js";
 import { registerLogoutCommand } from "./commands/logout.js";
 import { registerMineCommand } from "./commands/mine.js";
 import { registerOrgCommand } from "./commands/org.js";
 import { registerProjectCommand } from "./commands/project.js";
+import { registerStatusCommand } from "./commands/status.js";
+import { registerSublistCommand } from "./commands/sublist.js";
+import { registerTagCommand } from "./commands/tag.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
@@ -56,6 +63,13 @@ registerOrgCommand(program);
 registerProjectCommand(program);
 registerTaskCommand(program);
 registerMineCommand(program);
+registerTagCommand(program);
+registerSublistCommand(program);
+registerStatusCommand(program);
+registerCommentCommand(program);
+registerChatCommand(program);
+registerDocCommand(program);
+registerInsightCommand(program);
 
 program.addHelpText(
   "after",
@@ -68,6 +82,7 @@ Auth:
 Orgs / projects:
   quire org list               List your organizations
   quire org get <id>           Show one organization
+  quire org limit <id>         Show API rate-limit usage for an organization
   quire project list           List projects you can see (or --org <id> to scope)
   quire project get <id>       Show one project
   quire project members <id>   List a project's members
@@ -81,7 +96,18 @@ Tasks:
   quire task comments <id>     List a task's comments
   quire mine                   List tasks assigned to me; scope with --project / --org / --all-orgs
 
-Tag / sublist / status / chat / doc / insight commands (Phase 4.3+) are TODO — see PLAN.md.
+Project metadata:
+  quire tag list <project>     List tags defined on a project
+  quire sublist list <project> List sublists on a project
+  quire status list <project>  List custom statuses on a project
+
+Comments / chats / docs / insights:
+  quire comment list <task>    List comments on a task (alias for "quire task comments")
+  quire chat list <project>    List chats / chat get <id> / chat comments <id>
+  quire doc list <project>     List documents / doc get <id>
+  quire insight list <project> List insights / insight get <id>
+
+Resolve URL → resource (Phase 4.5) and write commands (Phase 5) are TODO — see PLAN.md.
 `,
 );
 
