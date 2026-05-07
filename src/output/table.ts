@@ -25,8 +25,8 @@ function truncate(s: string, max: number): string {
 }
 
 export function printTable<T>(
-  items: T[],
-  columns: TableColumn<T>[],
+  items: readonly T[],
+  columns: readonly TableColumn<T>[],
   opts: PrintTableOptions = {},
 ): void {
   if (items.length === 0) return;

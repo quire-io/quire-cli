@@ -5,9 +5,46 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { TASK_GET_FIELDS, TASK_LIST_COLUMNS } from "../output/columns.js";
 import { renderList, renderObject } from "../output/render.js";
+import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
+import { readBulkItems, readBulkRefs } from "../util/bulk-input.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
+
+type BulkResultRow = null | {
+  oid: string;
+  id?: number | string;
+  name?: string;
+  nameText?: string;
+  status?: { name: string };
+};
+
+/**
+ * Bulk endpoints can return mixed shapes: full `QuireTask` (with --return
+ * full / when the server happens to send it), `{oid, id?}` compact rows,
+ * or `null` for items that failed individually inside an atomic call. One
+ * column set covers all three; absent fields render as empty cells.
+ */
+function renderBulkResults(results: readonly unknown[], root: GlobalOpts): void {
+  if (root.json === true) {
+    process.stdout.write(`${JSON.stringify(results)}\n`);
+    return;
+  }
+  if (root.quiet === true) {
+    for (const r of results) {
+      const oid = (r as { oid?: string } | null)?.oid;
+      process.stdout.write(`${oid ?? ""}\n`);
+    }
+    return;
+  }
+  const rows = results as readonly BulkResultRow[];
+  printTable(rows, [
+    { header: "ID", get: (r) => (r?.id !== undefined ? `#${r.id}` : "") },
+    { header: "NAME", get: (r) => (r ? (r.nameText ?? r.name ?? "") : "") },
+    { header: "STATUS", get: (r) => r?.status?.name ?? "" },
+    { header: "OID", get: (r) => (r ? r.oid : "(failed)") },
+  ]);
+}
 
 interface ListOpts {
   limit?: string;
@@ -505,5 +542,126 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const t = await client.undoRemoveTask(id);
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  // -------- Bulk operations (Phase 5.3 slice A; Apr 27 2026 endpoints) --------
+
+  task
+    .command("bulk-create <project>")
+    .description("Create many tasks atomically (max 300/call). --from-file accepts a JSON array of task objects; '-' reads stdin.")
+    .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
+    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const items = await readBulkItems(cmdOpts.fromFile);
+      const results = await client.bulkCreateTasks(projectOid, items);
+      renderBulkResults(results, root);
+    });
+
+  task
+    .command("bulk-update <project>")
+    .description("Update many tasks atomically. Each item must include `oid`.")
+    .requiredOption("--from-file <file>", "JSON array of update objects (or '-' for stdin)")
+    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const items = await readBulkItems(cmdOpts.fromFile);
+      const results = await client.bulkUpdateTasks(projectOid, items);
+      renderBulkResults(results, root);
+    });
+
+  task
+    .command("bulk-delete <project>")
+    .description("Delete many tasks. Refs are OIDs or numeric IDs; one per line, blank / '#'-comment lines OK, JSON array also accepted.")
+    .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
+    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const refs = await readBulkRefs(cmdOpts.fromFile);
+      await confirmDestructive({
+        question: `Delete ${refs.length} task(s) from project ${projectOid}? Restore individually with \`quire task undo-remove\`.`,
+        yes: root.yes,
+      });
+      const results = await client.bulkRemoveTasks(projectOid, refs);
+      renderBulkResults(results, root);
+    });
+
+  task
+    .command("bulk-move <project>")
+    .description("Re-parent many tasks within the same project.")
+    .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
+    .requiredOption("--to <id>", "New parent task OID, or 'root' to move under the project root")
+    .option("--position <pos>", "'parent', 'before', or 'after'")
+    .action(async (project: string, cmdOpts: { fromFile: string; to: string; position?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const refs = await readBulkRefs(cmdOpts.fromFile);
+      const parent = cmdOpts.to === "root" ? "root" : await resolveTaskOid(client, cmdOpts.to);
+      const position = parsePosition(cmdOpts.position, ["parent", "before", "after"]);
+      const results = await client.bulkMoveTasks(projectOid, refs, {
+        task: parent,
+        ...(position !== undefined ? { position } : {}),
+      });
+      renderBulkResults(results, root);
+    });
+
+  task
+    .command("bulk-transfer <project>")
+    .description("Transfer many tasks from <project> to another project.")
+    .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
+    .requiredOption("--to <project>", "Target project (OID, slug, or URL)")
+    .option("--task <id>", "Anchor task in the target project")
+    .option("--position <pos>", "'parent', 'before', or 'after'")
+    .option("--keep-tags", "Preserve tags during transfer")
+    .option("--keep-status", "Preserve status during transfer")
+    .option("--keep-custom-fields", "Preserve custom fields during transfer")
+    .option("--invite", "Invite the assignees to the target project")
+    .action(async (project: string, cmdOpts: {
+      fromFile: string; to: string; task?: string; position?: string;
+      keepTags?: boolean; keepStatus?: boolean; keepCustomFields?: boolean; invite?: boolean;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const sourceOid = await client.resolveProjectOid(project);
+      const targetOid = await client.resolveProjectOid(cmdOpts.to);
+      const refs = await readBulkRefs(cmdOpts.fromFile);
+      const taskAnchor = cmdOpts.task !== undefined ? await resolveTaskOid(client, cmdOpts.task) : undefined;
+      const position = parsePosition(cmdOpts.position, ["parent", "before", "after"]);
+      const results = await client.bulkTransferTasks(sourceOid, refs, {
+        project: targetOid,
+        ...(taskAnchor !== undefined ? { task: taskAnchor } : {}),
+        ...(position !== undefined ? { position } : {}),
+        ...(cmdOpts.invite === true ? { invite: true } : {}),
+        ...(cmdOpts.keepTags === true ? { tag: true } : {}),
+        ...(cmdOpts.keepStatus === true ? { status: true } : {}),
+        ...(cmdOpts.keepCustomFields === true ? { customField: true } : {}),
+      });
+      renderBulkResults(results, root);
+    });
+
+  task
+    .command("bulk-approve <project>")
+    .description("Apply an approval state to many tasks at once.")
+    .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
+    .requiredOption("--state <state>", "'request' | 'approve' | 'reject' | 'change'")
+    .option("--category <id>", "Approval category (only used when --state request)")
+    .action(async (project: string, cmdOpts: { fromFile: string; state: string; category?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const refs = await readBulkRefs(cmdOpts.fromFile);
+      const validStates = ["request", "approve", "reject", "change"] as const;
+      if (!(validStates as readonly string[]).includes(cmdOpts.state)) {
+        throw new ValidationError(`--state must be one of ${validStates.join(", ")}; got "${cmdOpts.state}"`);
+      }
+      const results = await client.bulkApproveTasks(projectOid, refs, {
+        state: cmdOpts.state as (typeof validStates)[number],
+        ...(cmdOpts.category !== undefined ? { category: cmdOpts.category } : {}),
+      });
+      renderBulkResults(results, root);
     });
 }

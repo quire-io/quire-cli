@@ -112,6 +112,14 @@ Tasks (write):
   quire task delete <id>                     Delete a task (prompts unless --yes)
   quire task undo-remove <oid>               Restore a deleted task
 
+Tasks (bulk):
+  quire task bulk-create <project>     --from-file tasks.json   Create up to 300 tasks atomically
+  quire task bulk-update <project>     --from-file updates.json Update many tasks atomically (each item needs an oid)
+  quire task bulk-delete <project>     --from-file ids.txt      Delete many (prompts unless --yes); refs one per line or JSON array
+  quire task bulk-move <project>       --to <id|root> --from-file ids.txt
+  quire task bulk-transfer <project>   --to <project> --from-file ids.txt
+  quire task bulk-approve <project>    --state request|approve|reject|change --from-file ids.txt
+
 Project metadata (read):
   quire tag list <project>     List tags defined on a project
   quire sublist list <project> List sublists on a project
