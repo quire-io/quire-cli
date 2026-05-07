@@ -120,6 +120,20 @@ Tasks (bulk):
   quire task bulk-transfer <project>   --to <project> --from-file ids.txt
   quire task bulk-approve <project>    --state request|approve|reject|change --from-file ids.txt
 
+Tasks (approval / timelogs / recurrence):
+  quire task approve <id> --state ...           Set a task's approval state
+  quire task revoke-approval <id>               Revoke any approval state
+  quire task timelog add <id>     --start --end [--user / --billable / --note]
+  quire task timelog update <id>  --start --end [--new-start / --new-end / --note / ...]
+  quire task timelog remove <id>  --start --end                                (prompts unless --yes)
+  --recurrence-freq / --recurrence-interval / --recurrence-byweekday / --recurrence-until
+                                                Add / clear recurrence on "task create" / "task subtask" / "task update"
+
+Project metadata (approval categories):
+  quire project approval-category add <project>          --id ... --name ... [--claimer / --approver]
+  quire project approval-category update <project> <id>  [--name / --claimer / --approver / --claimers-anyone / --claimers-admins-only / ...]
+  quire project approval-category remove <project> <id>  (prompts unless --yes)
+
 Project metadata (read):
   quire tag list <project>     List tags defined on a project
   quire sublist list <project> List sublists on a project

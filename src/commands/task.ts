@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import type { QuireTask, QuireTaskSearchParams } from "@quire-io/api-client";
+import type { QuireApproval, QuireTask, QuireTaskSearchParams, QuireTimelog } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
@@ -9,7 +9,33 @@ import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
 import { readBulkItems, readBulkRefs } from "../util/bulk-input.js";
 import { confirmDestructive } from "../util/confirm.js";
+import { parseRecurrence } from "../util/recurrence.js";
+import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveTaskOid } from "../util/task-id.js";
+
+/** Adds the four shared `--recurrence-*` options to a command. */
+function addRecurrenceOptions(cmd: Command): Command {
+  return cmd
+    .option("--recurrence-freq <freq>", "Recurrence: daily | weekly | monthly | yearly")
+    .option("--recurrence-interval <n>", "Recurrence: positive integer (every N freq-units)")
+    .option("--recurrence-byweekday <days>", "Recurrence: comma-separated day numbers 0-6 (0=Sun)")
+    .option("--recurrence-until <date>", "Recurrence: ISO 8601 / YYYY-MM-DD end date");
+}
+
+const APPROVAL_FIELDS = [
+  { label: "State", get: (a: QuireApproval) => a.state },
+  { label: "Category", get: (a: QuireApproval) => a.category || "(default)" },
+  { label: "Requester", get: (a: QuireApproval) => a.requesterRef?.id ?? a.requester },
+  { label: "Approver", get: (a: QuireApproval) => a.approverRef?.id ?? a.approver },
+];
+
+const TIMELOG_COLUMNS = [
+  { header: "START", get: (t: QuireTimelog) => t.start },
+  { header: "END", get: (t: QuireTimelog) => t.end },
+  { header: "USER", get: (t: QuireTimelog) => t.user.name ?? t.user.id ?? t.user.oid },
+  { header: "BILLABLE", get: (t: QuireTimelog) => (t.billable === true ? "yes" : "") },
+  { header: "NOTE", get: (t: QuireTimelog) => (t.note ?? "").replace(/\s+/g, " ").trim() },
+];
 
 type BulkResultRow = null | {
   oid: string;
@@ -254,7 +280,7 @@ export function registerTaskCommand(program: Command): void {
     return input as "parent" | "before" | "after";
   }
 
-  task
+  addRecurrenceOptions(task
     .command("create <project>")
     .description("Create a task in a project. Combine with --parent or --sibling+--position to nest / position.")
     .requiredOption("--name <name>", "Task name (required)")
@@ -266,11 +292,11 @@ export function registerTaskCommand(program: Command): void {
     .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
     .option("--parent <id>", "Create as a subtask of this parent task")
     .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
-    .option("--position <pos>", "Used with --sibling: 'before' or 'after'")
+    .option("--position <pos>", "Used with --sibling: 'before' or 'after'"))
     .action(async (project: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
       assignee?: string[]; tag?: string[]; parent?: string; sibling?: string; position?: string;
-    }) => {
+    } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
 
@@ -278,6 +304,7 @@ export function registerTaskCommand(program: Command): void {
         throw new ValidationError("Cannot combine --parent and --sibling.");
       }
 
+      const recurrence = parseRecurrence(cmdOpts);
       const body = {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -286,6 +313,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+        ...(recurrence !== undefined ? { recurrence } : {}),
       };
 
       let created: QuireTask;
@@ -307,7 +335,7 @@ export function registerTaskCommand(program: Command): void {
       renderObject(created, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
     });
 
-  task
+  addRecurrenceOptions(task
     .command("subtask <parent-id>")
     .description("Create a subtask of an existing task. Alias for `task create --parent`.")
     .requiredOption("--name <name>", "Task name (required)")
@@ -316,14 +344,15 @@ export function registerTaskCommand(program: Command): void {
     .option("--due <date>")
     .option("--start <date>")
     .option("--assignee <user>", "Repeat for multiple", append, [] as string[])
-    .option("--tag <tag>", "Repeat for multiple", append, [] as string[])
+    .option("--tag <tag>", "Repeat for multiple", append, [] as string[]))
     .action(async (parentId: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
       assignee?: string[]; tag?: string[];
-    }) => {
+    } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const parentOid = await resolveTaskOid(client, parentId);
+      const recurrence = parseRecurrence(cmdOpts);
       const t = await client.createSubtask(parentOid, {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -332,11 +361,12 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+        ...(recurrence !== undefined ? { recurrence } : {}),
       });
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
     });
 
-  task
+  addRecurrenceOptions(task
     .command("update <id>")
     .description("Update task fields. Pass any subset of flags.")
     .option("--name <name>")
@@ -351,7 +381,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--remove-assignee <user>", "Repeat for multiple", append, [] as string[])
     .option("--add-successor <id>", "Repeat for multiple", append, [] as string[])
     .option("--remove-successor <id>", "Repeat for multiple", append, [] as string[])
-    .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[])
+    .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[]))
     .action(async (id: string, cmdOpts: {
       name?: string; description?: string; status?: string; priority?: string;
       due?: string; start?: string;
@@ -359,7 +389,7 @@ export function registerTaskCommand(program: Command): void {
       addAssignee?: string[]; removeAssignee?: string[];
       addSuccessor?: string[]; removeSuccessor?: string[];
       customField?: string[];
-    }) => {
+    } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
@@ -373,6 +403,7 @@ export function registerTaskCommand(program: Command): void {
         status = n;
       }
 
+      const recurrence = parseRecurrence(cmdOpts);
       const body = {
         ...(cmdOpts.name !== undefined ? { name: cmdOpts.name } : {}),
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -387,6 +418,7 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.addSuccessor?.length ?? 0) > 0 ? { addSuccessors: cmdOpts.addSuccessor } : {}),
         ...((cmdOpts.removeSuccessor?.length ?? 0) > 0 ? { removeSuccessors: cmdOpts.removeSuccessor } : {}),
         ...((cmdOpts.customField?.length ?? 0) > 0 ? { customFields: parseCustomFields(cmdOpts.customField) } : {}),
+        ...(recurrence !== undefined ? { recurrence } : {}),
       };
 
       const t = await client.updateTask(oid, body);
@@ -663,5 +695,131 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.category !== undefined ? { category: cmdOpts.category } : {}),
       });
       renderBulkResults(results, root);
+    });
+
+  // -------- Approval (Phase 5.3 slice B) --------
+
+  task
+    .command("approve <id>")
+    .description("Set a task's approval state.")
+    .requiredOption("--state <state>", "request | approve | reject | change")
+    .option("--category <id>", "Approval category id (only meaningful for --state request)")
+    .action(async (id: string, cmdOpts: { state: string; category?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      const validStates = ["request", "approve", "reject", "change"] as const;
+      if (!(validStates as readonly string[]).includes(cmdOpts.state)) {
+        throw new ValidationError(`--state must be one of ${validStates.join(", ")}; got "${cmdOpts.state}"`);
+      }
+      const a = await client.approveTask(oid, {
+        state: cmdOpts.state as (typeof validStates)[number],
+        ...(cmdOpts.category !== undefined ? { category: cmdOpts.category } : {}),
+      });
+      renderObject(a, root, { fields: APPROVAL_FIELDS, toId: () => oid });
+    });
+
+  task
+    .command("revoke-approval <id>")
+    .description("Revoke any approval state on a task.")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      await client.revokeTaskApproval(oid);
+      if (root.json === true) {
+        process.stdout.write(`${JSON.stringify({ oid, revoked: true })}\n`);
+      } else if (root.quiet === true) {
+        process.stdout.write(`${oid}\n`);
+      } else {
+        process.stderr.write(`Revoked approval on task ${oid}.\n`);
+      }
+    });
+
+  // -------- Timelogs (Phase 5.3 slice B; Apr 27 2026 endpoints) --------
+
+  const timelog = task.command("timelog").description("Quire task time tracking.");
+
+  timelog
+    .command("add <task-id>")
+    .description("Add a timelog entry to a task.")
+    .requiredOption("--start <iso8601>", "Start timestamp (ISO 8601)")
+    .requiredOption("--end <iso8601>", "End timestamp (ISO 8601)")
+    .option("--user <user>", "Log against another user (OID, id, or email; default: self)")
+    .option("--billable", "Mark as billable")
+    .option("--note <text>", "Optional note")
+    .action(async (taskId: string, cmdOpts: {
+      start: string; end: string; user?: string; billable?: boolean; note?: string;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, taskId);
+      const logs = await client.addTaskTimelog(oid, {
+        start: cmdOpts.start,
+        end: cmdOpts.end,
+        ...(cmdOpts.user !== undefined ? { user: cmdOpts.user } : {}),
+        ...(cmdOpts.billable === true ? { billable: true } : {}),
+        ...(cmdOpts.note !== undefined ? { note: cmdOpts.note } : {}),
+      });
+      renderList(logs, root, { columns: TIMELOG_COLUMNS, toId: (l) => `${l.start}/${l.end}` });
+    });
+
+  timelog
+    .command("update <task-id>")
+    .description("Update a timelog entry. Use --start / --end / --user to identify the row; --new-* and --note / --billable to change it.")
+    .requiredOption("--start <iso8601>", "Existing start timestamp")
+    .requiredOption("--end <iso8601>", "Existing end timestamp")
+    .option("--user <user>", "User on the existing row (when not self)")
+    .option("--new-start <iso8601>", "Replace the start timestamp")
+    .option("--new-end <iso8601>", "Replace the end timestamp")
+    .option("--new-user <user>", "Replace the user")
+    .option("--billable", "Mark billable")
+    .option("--no-billable", "Clear the billable flag")
+    .option("--note <text>", "Replace the note (pass an empty string to clear)")
+    .action(async (taskId: string, cmdOpts: {
+      start: string; end: string; user?: string;
+      newStart?: string; newEnd?: string; newUser?: string;
+      billable?: boolean;
+      note?: string;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, taskId);
+      const target: { start: string; end: string; user?: string } = { start: cmdOpts.start, end: cmdOpts.end };
+      if (cmdOpts.user !== undefined) target.user = cmdOpts.user;
+      const body: { start?: string; end?: string; user?: string; billable?: boolean | null; note?: string | null } = {};
+      if (cmdOpts.newStart !== undefined) body.start = cmdOpts.newStart;
+      if (cmdOpts.newEnd !== undefined) body.end = cmdOpts.newEnd;
+      if (cmdOpts.newUser !== undefined) body.user = cmdOpts.newUser;
+      if (cmdOpts.billable === true) body.billable = true;
+      else if (cmdOpts.billable === false) body.billable = false;
+      if (cmdOpts.note !== undefined) body.note = cmdOpts.note === "" ? null : cmdOpts.note;
+      if (Object.keys(body).length === 0) {
+        throw new ValidationError("`task timelog update` requires at least one of --new-start / --new-end / --new-user / --billable / --no-billable / --note.");
+      }
+      const logs = await client.updateTaskTimelog(oid, target, body);
+      renderList(logs, root, { columns: TIMELOG_COLUMNS, toId: (l) => `${l.start}/${l.end}` });
+    });
+
+  timelog
+    .command("remove <task-id>")
+    .description("Remove a timelog entry. Identify the row via --start / --end (and --user if not self).")
+    .requiredOption("--start <iso8601>", "Existing start timestamp")
+    .requiredOption("--end <iso8601>", "Existing end timestamp")
+    .option("--user <user>", "User on the row (when not self)")
+    .action(async (taskId: string, cmdOpts: { start: string; end: string; user?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, taskId);
+      await confirmDestructive({
+        question: `Remove timelog ${cmdOpts.start} → ${cmdOpts.end} from task ${oid}?`,
+        yes: root.yes,
+      });
+      const logs = await client.removeTaskTimelog(oid, {
+        start: cmdOpts.start,
+        end: cmdOpts.end,
+        ...(cmdOpts.user !== undefined ? { user: cmdOpts.user } : {}),
+      });
+      renderList(logs, root, { columns: TIMELOG_COLUMNS, toId: (l) => `${l.start}/${l.end}` });
     });
 }
