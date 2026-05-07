@@ -7,7 +7,7 @@ import { createLogger } from "../log.js";
 interface GlobalOpts {
   verbose?: boolean;
   quiet?: boolean;
-  color?: "always" | "never" | "auto";
+  colorMode?: "always" | "never" | "auto";
   profile?: string;
 }
 
@@ -19,7 +19,7 @@ export function registerLogoutCommand(program: Command): void {
     )
     .action(() => {
       const root = program.opts<GlobalOpts>();
-      const log = createLogger({ verbose: root.verbose === true, color: root.color });
+      const log = createLogger({ verbose: root.verbose === true, color: root.colorMode });
 
       const stored = readCredentials(root.profile);
       const { credentialsPath } = resolveConfigPaths(root.profile);

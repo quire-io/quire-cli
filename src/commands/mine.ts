@@ -35,7 +35,7 @@ export function registerMineCommand(program: Command): void {
     .option("--limit <n>", "Page size.")
     .action(async (cmdOpts: MineOpts) => {
       const root = program.opts<GlobalOpts>();
-      const log = createLogger({ verbose: root.verbose === true, color: root.color });
+      const log = createLogger({ verbose: root.verbose === true, color: root.colorMode });
       const client = createQuireClient({ profile: root.profile });
       const params: QuireTaskSearchParams = {
         mine: true,

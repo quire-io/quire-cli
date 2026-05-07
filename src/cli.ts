@@ -49,7 +49,7 @@ program
   .option("--verbose", "Enable verbose (debug) logging on stderr")
   .option("--json", "Emit raw API JSON (no human formatting)")
   .option("-q, --quiet", "Print only IDs (one per line) — designed for xargs pipelines")
-  .option("--color <mode>", "Color output mode: always|never|auto", "auto")
+  .option("--color-mode <mode>", "Color output mode: always|never|auto", "auto")
   .option(
     "--profile <name>",
     "Use a named credential profile (default: $QUIRE_PROFILE or 'default')",
@@ -110,16 +110,33 @@ Tasks (write):
   quire task delete <id>                     Delete a task (prompts unless --yes)
   quire task undo-remove <oid>               Restore a deleted task
 
-Project metadata:
+Project metadata (read):
   quire tag list <project>     List tags defined on a project
   quire sublist list <project> List sublists on a project
   quire status list <project>  List custom statuses on a project
 
-Comments / chats / docs / insights:
+Project metadata (write):
+  quire tag create <project>      Create a tag (--name / --color)
+  quire tag update <oid>          Update tag --name / --color
+  quire tag delete <oid>          Delete a tag (prompts unless --yes)
+  quire sublist create <project>  Create a sublist (--name / --description)
+  quire sublist update <oid>      Update sublist (--name / --description / --start / --due / --archive / --unarchive)
+  quire sublist delete <oid>      Delete a sublist (prompts unless --yes)
+  quire sublist undo-remove <oid> Restore a deleted sublist
+  quire status create <project>   Create a status (--name / --value / --color)
+  quire status update <project> <value>  Update a status (--name / --color / --new-value)
+  quire status delete <project> <value>  Delete a status (prompts unless --yes)
+
+Comments / chats / docs / insights (read):
   quire comment list <task>    List comments on a task (alias for "quire task comments")
   quire chat list <project>    List chats / chat get <id> / chat comments <id>
   quire doc list <project>     List documents / doc get <id>
   quire insight list <project> List insights / insight get <id>
+
+Comments (write):
+  quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file)
+  quire comment update <oid>              Update --text and/or --pin / --unpin
+  quire comment delete <oid>              Delete a comment (prompts unless --yes)
 
 URL resolver:
   quire resolve <url>          Paste any Quire URL, get the typed resource back
@@ -135,7 +152,7 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   const log = createLogger({
     verbose: program.opts().verbose === true,
-    color: program.opts().color as "always" | "never" | "auto" | undefined,
+    color: program.opts().colorMode as "always" | "never" | "auto" | undefined,
   });
   handleError(err, log);
 });

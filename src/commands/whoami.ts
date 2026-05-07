@@ -7,7 +7,7 @@ interface GlobalOpts {
   verbose?: boolean;
   json?: boolean;
   quiet?: boolean;
-  color?: "always" | "never" | "auto";
+  colorMode?: "always" | "never" | "auto";
   profile?: string;
 }
 
@@ -17,7 +17,7 @@ export function registerWhoamiCommand(program: Command): void {
     .description("Show the signed-in Quire user and the orgs they belong to.")
     .action(async () => {
       const root = program.opts<GlobalOpts>();
-      const log = createLogger({ verbose: root.verbose === true, color: root.color });
+      const log = createLogger({ verbose: root.verbose === true, color: root.colorMode });
 
       const client = createQuireClient({ profile: root.profile });
       const [me, orgs] = await Promise.all([client.getMe(), client.listOrganizations()]);

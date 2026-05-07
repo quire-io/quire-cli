@@ -14,7 +14,7 @@ interface GlobalOpts {
   verbose?: boolean;
   json?: boolean;
   quiet?: boolean;
-  color?: "always" | "never" | "auto";
+  colorMode?: "always" | "never" | "auto";
   profile?: string;
 }
 
@@ -24,7 +24,7 @@ export function registerLoginCommand(program: Command): void {
     .description("Sign in to Quire via OAuth (loopback redirect + PKCE).")
     .action(async () => {
       const root = program.opts<GlobalOpts>();
-      const log = createLogger({ verbose: root.verbose === true, color: root.color });
+      const log = createLogger({ verbose: root.verbose === true, color: root.colorMode });
 
       const apiServer = getApiServer();
       const { codeVerifier, codeChallenge } = generatePkce();
