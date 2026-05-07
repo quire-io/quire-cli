@@ -1,0 +1,50 @@
+{
+  "name": "quire-cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the Quire API.",
+  "type": "module",
+  "bin": {
+    "quire": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No tests yet — see PLAN.md Phase 7\" && exit 0"
+  },
+  "keywords": [
+    "quire",
+    "cli",
+    "task-management",
+    "productivity",
+    "api"
+  ],
+  "license": "ISC",
+  "author": "Potix Corporation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quire-io/quire-cli.git"
+  },
+  "homepage": "https://github.com/quire-io/quire-cli#readme",
+  "bugs": {
+    "url": "https://github.com/quire-io/quire-cli/issues"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
