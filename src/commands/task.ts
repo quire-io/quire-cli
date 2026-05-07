@@ -1,11 +1,12 @@
 import { Command } from "commander";
-import type { QuireTaskSearchParams } from "@quire-io/api-client";
+import type { QuireTask, QuireTaskSearchParams } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
-import { TASK_LIST_COLUMNS } from "../output/columns.js";
+import { TASK_GET_FIELDS, TASK_LIST_COLUMNS } from "../output/columns.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
 
 interface ListOpts {
@@ -66,23 +67,7 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
       const t = await client.getTask(oid);
-      renderObject(t, root, {
-        fields: [
-          { label: "Name", get: (t) => t.nameText ?? t.name },
-          { label: "ID", get: (t) => `#${t.id}` },
-          { label: "OID", get: (t) => t.oid },
-          { label: "Status", get: (t) => t.status?.name },
-          { label: "Priority", get: (t) => t.priority?.name },
-          { label: "Start", get: (t) => t.start },
-          { label: "Due", get: (t) => t.due },
-          { label: "Description", get: (t) => t.descriptionText },
-          { label: "URL", get: (t) => t.url },
-          { label: "Created at", get: (t) => t.createdAt },
-          { label: "Edited at", get: (t) => t.editedAt },
-          { label: "Archived at", get: (t) => t.archivedAt },
-        ],
-        toId: (t) => t.oid,
-      });
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
     });
 
   task
@@ -204,5 +189,321 @@ export function registerTaskCommand(program: Command): void {
         ],
         toId: (c) => c.oid,
       });
+    });
+
+  // -------- Write commands (Phase 5.1) --------
+
+  // Accumulator for repeated CLI flags (e.g. `--tag a --tag b` → ["a","b"]).
+  const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
+
+  function parseCustomFields(pairs: string[] | undefined): Record<string, string> | undefined {
+    if (!pairs?.length) return undefined;
+    const result: Record<string, string> = {};
+    for (const pair of pairs) {
+      const eq = pair.indexOf("=");
+      if (eq <= 0) {
+        throw new ValidationError(`Invalid --custom-field "${pair}". Expected key=value.`);
+      }
+      result[pair.slice(0, eq)] = pair.slice(eq + 1);
+    }
+    return result;
+  }
+
+  function parsePosition(input: string | undefined, allowed: ReadonlyArray<"parent" | "before" | "after">): "parent" | "before" | "after" | undefined {
+    if (input === undefined) return undefined;
+    if (!(allowed as readonly string[]).includes(input)) {
+      throw new ValidationError(`--position must be one of ${allowed.join(", ")}; got "${input}"`);
+    }
+    return input as "parent" | "before" | "after";
+  }
+
+  task
+    .command("create <project>")
+    .description("Create a task in a project. Combine with --parent or --sibling+--position to nest / position.")
+    .requiredOption("--name <name>", "Task name (required)")
+    .option("--description <text>", "Task description")
+    .option("--priority <priority>", "low|medium|high|urgent")
+    .option("--due <date>", "Due date (YYYY-MM-DD or ISO 8601)")
+    .option("--start <date>", "Start date")
+    .option("--assignee <user>", "Assignee (OID, id, or email); repeat for multiple", append, [] as string[])
+    .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
+    .option("--parent <id>", "Create as a subtask of this parent task")
+    .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
+    .option("--position <pos>", "Used with --sibling: 'before' or 'after'")
+    .action(async (project: string, cmdOpts: {
+      name: string; description?: string; priority?: string; due?: string; start?: string;
+      assignee?: string[]; tag?: string[]; parent?: string; sibling?: string; position?: string;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+
+      if (cmdOpts.parent !== undefined && cmdOpts.sibling !== undefined) {
+        throw new ValidationError("Cannot combine --parent and --sibling.");
+      }
+
+      const body = {
+        name: cmdOpts.name,
+        ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
+        ...(cmdOpts.priority !== undefined ? { priority: cmdOpts.priority } : {}),
+        ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
+        ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
+        ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
+        ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+      };
+
+      let created: QuireTask;
+      if (cmdOpts.parent !== undefined) {
+        const parentOid = await resolveTaskOid(client, cmdOpts.parent);
+        created = await client.createSubtask(parentOid, body);
+      } else if (cmdOpts.sibling !== undefined) {
+        const pos = parsePosition(cmdOpts.position, ["before", "after"]);
+        if (pos !== "before" && pos !== "after") {
+          throw new ValidationError("--sibling requires --position before|after.");
+        }
+        const siblingOid = await resolveTaskOid(client, cmdOpts.sibling);
+        created = await client.createTaskRelative(siblingOid, body, pos);
+      } else {
+        const projectOid = await client.resolveProjectOid(project);
+        created = await client.createTask(projectOid, body);
+      }
+
+      renderObject(created, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("subtask <parent-id>")
+    .description("Create a subtask of an existing task. Alias for `task create --parent`.")
+    .requiredOption("--name <name>", "Task name (required)")
+    .option("--description <text>")
+    .option("--priority <priority>", "low|medium|high|urgent")
+    .option("--due <date>")
+    .option("--start <date>")
+    .option("--assignee <user>", "Repeat for multiple", append, [] as string[])
+    .option("--tag <tag>", "Repeat for multiple", append, [] as string[])
+    .action(async (parentId: string, cmdOpts: {
+      name: string; description?: string; priority?: string; due?: string; start?: string;
+      assignee?: string[]; tag?: string[];
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const parentOid = await resolveTaskOid(client, parentId);
+      const t = await client.createSubtask(parentOid, {
+        name: cmdOpts.name,
+        ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
+        ...(cmdOpts.priority !== undefined ? { priority: cmdOpts.priority } : {}),
+        ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
+        ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
+        ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
+        ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+      });
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("update <id>")
+    .description("Update task fields. Pass any subset of flags.")
+    .option("--name <name>")
+    .option("--description <text>")
+    .option("--status <value>", "Numeric 0-100 (see `quire status list`)")
+    .option("--priority <priority>", "low|medium|high|urgent")
+    .option("--due <date>")
+    .option("--start <date>")
+    .option("--add-tag <tag>", "Repeat for multiple", append, [] as string[])
+    .option("--remove-tag <tag>", "Repeat for multiple", append, [] as string[])
+    .option("--add-assignee <user>", "Repeat for multiple", append, [] as string[])
+    .option("--remove-assignee <user>", "Repeat for multiple", append, [] as string[])
+    .option("--add-successor <id>", "Repeat for multiple", append, [] as string[])
+    .option("--remove-successor <id>", "Repeat for multiple", append, [] as string[])
+    .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[])
+    .action(async (id: string, cmdOpts: {
+      name?: string; description?: string; status?: string; priority?: string;
+      due?: string; start?: string;
+      addTag?: string[]; removeTag?: string[];
+      addAssignee?: string[]; removeAssignee?: string[];
+      addSuccessor?: string[]; removeSuccessor?: string[];
+      customField?: string[];
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+
+      let status: number | undefined;
+      if (cmdOpts.status !== undefined) {
+        const n = Number.parseInt(cmdOpts.status, 10);
+        if (!Number.isInteger(n) || n < 0 || n > 100) {
+          throw new ValidationError(`--status must be an integer 0-100; got "${cmdOpts.status}"`);
+        }
+        status = n;
+      }
+
+      const body = {
+        ...(cmdOpts.name !== undefined ? { name: cmdOpts.name } : {}),
+        ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(cmdOpts.priority !== undefined ? { priority: cmdOpts.priority } : {}),
+        ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
+        ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
+        ...((cmdOpts.addTag?.length ?? 0) > 0 ? { addTags: cmdOpts.addTag } : {}),
+        ...((cmdOpts.removeTag?.length ?? 0) > 0 ? { removeTags: cmdOpts.removeTag } : {}),
+        ...((cmdOpts.addAssignee?.length ?? 0) > 0 ? { addAssignees: cmdOpts.addAssignee } : {}),
+        ...((cmdOpts.removeAssignee?.length ?? 0) > 0 ? { removeAssignees: cmdOpts.removeAssignee } : {}),
+        ...((cmdOpts.addSuccessor?.length ?? 0) > 0 ? { addSuccessors: cmdOpts.addSuccessor } : {}),
+        ...((cmdOpts.removeSuccessor?.length ?? 0) > 0 ? { removeSuccessors: cmdOpts.removeSuccessor } : {}),
+        ...((cmdOpts.customField?.length ?? 0) > 0 ? { customFields: parseCustomFields(cmdOpts.customField) } : {}),
+      };
+
+      const t = await client.updateTask(oid, body);
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("complete <id>")
+    .description("Mark a task complete.")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      const t = await client.completeTask(oid);
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("uncomplete <id>")
+    .description("Re-open a completed task (sets status to 0 / active).")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      const t = await client.updateTask(oid, { status: 0 });
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("move <id>")
+    .description("Re-parent a task within the same project.")
+    .option("--to <id>", "New parent task ID, or 'root' to move under the project root")
+    .option("--position <pos>", "'parent', 'before', or 'after'")
+    .action(async (id: string, cmdOpts: { to?: string; position?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+
+      let parentOid: string | undefined;
+      if (cmdOpts.to !== undefined && cmdOpts.to !== "root") {
+        parentOid = await resolveTaskOid(client, cmdOpts.to);
+      }
+      const position = parsePosition(cmdOpts.position, ["parent", "before", "after"]);
+      const t = await client.moveTask(oid, parentOid, position);
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("transfer <id>")
+    .description("Transfer a task to a different project (cross-project move).")
+    .requiredOption("--to <project>", "Target project (OID, slug, or URL)")
+    .option("--task <id>", "Anchor task within the target project (use with --position)")
+    .option("--position <pos>", "'parent', 'before', or 'after' relative to --task")
+    .option("--keep-tags", "Preserve tags during transfer")
+    .option("--keep-status", "Preserve status during transfer")
+    .option("--keep-custom-fields", "Preserve custom fields during transfer")
+    .option("--invite", "Invite the assignees to the target project")
+    .action(async (id: string, cmdOpts: {
+      to: string; task?: string; position?: string;
+      keepTags?: boolean; keepStatus?: boolean; keepCustomFields?: boolean; invite?: boolean;
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      const projectOid = await client.resolveProjectOid(cmdOpts.to);
+      const taskAnchor = cmdOpts.task !== undefined ? await resolveTaskOid(client, cmdOpts.task) : undefined;
+      const position = parsePosition(cmdOpts.position, ["parent", "before", "after"]);
+
+      const t = await client.transferTask(oid, {
+        project: projectOid,
+        ...(taskAnchor !== undefined ? { task: taskAnchor } : {}),
+        ...(position !== undefined ? { position } : {}),
+        ...(cmdOpts.invite === true ? { invite: true } : {}),
+        ...(cmdOpts.keepTags === true ? { tag: true } : {}),
+        ...(cmdOpts.keepStatus === true ? { status: true } : {}),
+        ...(cmdOpts.keepCustomFields === true ? { customField: true } : {}),
+      });
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("dates <id>")
+    .description("Set or clear task start / due dates. Pass 'null' to clear a date.")
+    .option("--start <date>", "Start date or 'null' to clear")
+    .option("--due <date>", "Due date or 'null' to clear")
+    .action(async (id: string, cmdOpts: { start?: string; due?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+
+      const body: { start?: string | null; due?: string | null } = {};
+      if (cmdOpts.start !== undefined) body.start = cmdOpts.start === "null" ? null : cmdOpts.start;
+      if (cmdOpts.due !== undefined) body.due = cmdOpts.due === "null" ? null : cmdOpts.due;
+
+      if (body.start === undefined && body.due === undefined) {
+        throw new ValidationError("`task dates` requires at least one of --start or --due.");
+      }
+
+      const t = await client.updateTask(oid, body);
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("peekaboo <id>")
+    .description("Hide (peekaboo) a task. --reshow-at <ISO 8601> sets a re-show time.")
+    .option("--reshow-at <iso8601>", "Reshow at this ISO 8601 timestamp (omit to hide indefinitely)")
+    .action(async (id: string, cmdOpts: { reshowAt?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+
+      let peekaboo: boolean | number = true;
+      if (cmdOpts.reshowAt !== undefined) {
+        const ms = Date.parse(cmdOpts.reshowAt);
+        if (Number.isNaN(ms)) {
+          throw new ValidationError(`--reshow-at must be ISO 8601 (e.g. 2026-05-08T12:00:00Z); got "${cmdOpts.reshowAt}"`);
+        }
+        peekaboo = ms;
+      }
+      const t = await client.updateTask(oid, { peekaboo });
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("delete <id>")
+    .description("Delete a task. Prompts for confirmation unless --yes is set.")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+
+      await confirmDestructive({
+        question: `Delete task ${oid}? Run \`quire task undo-remove ${oid}\` to restore.`,
+        yes: root.yes,
+      });
+
+      await client.deleteTask(oid);
+
+      if (root.json === true) {
+        process.stdout.write(`${JSON.stringify({ oid, deleted: true })}\n`);
+      } else if (root.quiet === true) {
+        process.stdout.write(`${oid}\n`);
+      } else {
+        process.stderr.write(`Deleted task ${oid}.\n`);
+      }
+    });
+
+  task
+    .command("undo-remove <id>")
+    .description("Restore a deleted task. Requires the task OID — slug/#N forms cannot address deleted tasks.")
+    .action(async (id: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const t = await client.undoRemoveTask(id);
+      renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
     });
 }

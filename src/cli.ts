@@ -89,7 +89,7 @@ Orgs / projects:
   quire project get <id>       Show one project
   quire project members <id>   List a project's members
 
-Tasks:
+Tasks (read):
   quire task list <project>    List tasks in a project
   quire task get <id>          Show task details (id = OID, slug/#N, or URL)
   quire task tree <id>         Render the recursive subtree (default depth 3)
@@ -97,6 +97,18 @@ Tasks:
   quire task subtasks <id>     List a task's direct subtasks
   quire task comments <id>     List a task's comments
   quire mine                   List tasks assigned to me; scope with --project / --org / --all-orgs
+
+Tasks (write):
+  quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest)
+  quire task subtask <parent> --name "..."   Shorthand for "task create --parent"
+  quire task update <id>                     Update fields: --name / --status / --priority / --add-tag / etc.
+  quire task complete <id> / uncomplete <id> Toggle status to 100 / 0
+  quire task move <id> --to <id|root>        Re-parent within the same project
+  quire task transfer <id> --to <project>    Cross-project transfer (--keep-tags / --keep-status / --invite)
+  quire task dates <id> --start ... --due ... Set / clear dates (pass 'null' to clear)
+  quire task peekaboo <id> [--reshow-at ISO] Hide a task; optional auto-reshow time
+  quire task delete <id>                     Delete a task (prompts unless --yes)
+  quire task undo-remove <oid>               Restore a deleted task
 
 Project metadata:
   quire tag list <project>     List tags defined on a project
