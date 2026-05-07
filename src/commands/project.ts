@@ -1,9 +1,12 @@
 import { Command } from "commander";
 
+import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
+import type { FieldFlags } from "../util/field-flags.js";
+import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
 
 const APPROVAL_CATEGORY_FIELDS = [
   { label: "ID", get: (c: { id: string }) => c.id },
@@ -182,6 +185,104 @@ export function registerProjectCommand(program: Command): void {
         process.stdout.write(`${categoryId}\n`);
       } else {
         process.stderr.write(`Removed approval category "${categoryId}" from project ${projectOid}.\n`);
+      }
+    });
+
+  // -------- Custom field definitions (Phase 5.3 slice C) --------
+
+  const field = project
+    .command("field")
+    .description("Manage custom-field definitions on a project.");
+
+  field
+    .command("add <project>")
+    .description("Add a custom-field definition. Use --extra for type-specific config (JSON-parsed when possible).")
+    .requiredOption("--name <name>", "Field name (required)")
+    .requiredOption("--type <type>", "Field type: text|number|money|date|duration|select|checkbox|user|task|hyperlink|email|formula|file|lookup")
+    .option("--hidden", "Hide the field by default")
+    .option("--private", "Mark as private (visible only to admins)")
+    .option("--percent", "Format numeric values as percentage")
+    .option("--multiple", "Allow multiple values")
+    .option("--clear-on-dup", "Clear value when a task is duplicated")
+    .option("--extra <kv>", "key=value; repeat for type-specific config (e.g. --extra options='[{...}]')", append, [] as string[])
+    .action(async (projectInput: string, cmdOpts: FieldFlags) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(projectInput);
+      const body = buildFieldBody(cmdOpts);
+      const f = await client.addProjectField(projectOid, body as { name: string; type: string });
+      renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
+    });
+
+  field
+    .command("update <project> <field-name>")
+    .description("Update a custom-field definition. Use --rename for renaming (or `field rename` for the dedicated command).")
+    .option("--type <type>", "New type")
+    .option("--hidden")
+    .option("--private")
+    .option("--percent")
+    .option("--multiple")
+    .option("--clear-on-dup")
+    .option("--extra <kv>", "key=value; repeat for type-specific config", append, [] as string[])
+    .action(async (projectInput: string, fieldName: string, cmdOpts: Omit<FieldFlags, "name">) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(projectInput);
+      const body = buildFieldBody(cmdOpts);
+      if (Object.keys(body).length === 0) {
+        throw new ValidationError("`field update` requires at least one of --type / --hidden / --private / --percent / --multiple / --clear-on-dup / --extra.");
+      }
+      const f = await client.updateProjectField(projectOid, fieldName, body);
+      renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
+    });
+
+  field
+    .command("rename <project> <field-name>")
+    .description("Rename a custom-field definition.")
+    .requiredOption("--new-name <new-name>", "New field name")
+    .action(async (projectInput: string, fieldName: string, cmdOpts: { newName: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(projectInput);
+      const f = await client.renameProjectField(projectOid, fieldName, cmdOpts.newName);
+      renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
+    });
+
+  field
+    .command("move <project> <field-name>")
+    .description("Reorder a custom-field definition. --before <field-name> places it just before that field; --to-end puts it at the end.")
+    .option("--before <field-name>", "Move just before this field")
+    .option("--to-end", "Move to the end of the field list")
+    .action(async (projectInput: string, fieldName: string, cmdOpts: { before?: string; toEnd?: boolean }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(projectInput);
+      if (cmdOpts.before !== undefined && cmdOpts.toEnd === true) {
+        throw new ValidationError("Cannot combine --before and --to-end.");
+      }
+      const before = cmdOpts.toEnd === true ? null : cmdOpts.before;
+      const f = await client.moveProjectField(projectOid, fieldName, before);
+      renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
+    });
+
+  field
+    .command("remove <project> <field-name>")
+    .description("Remove a custom-field definition. Prompts unless --yes.")
+    .action(async (projectInput: string, fieldName: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(projectInput);
+      await confirmDestructive({
+        question: `Remove custom-field "${fieldName}" from project ${projectOid}? Existing values on tasks will be dropped.`,
+        yes: root.yes,
+      });
+      await client.removeProjectField(projectOid, fieldName);
+      if (root.json === true) {
+        process.stdout.write(`${JSON.stringify({ project: projectOid, field: fieldName, removed: true })}\n`);
+      } else if (root.quiet === true) {
+        process.stdout.write(`${fieldName}\n`);
+      } else {
+        process.stderr.write(`Removed custom-field "${fieldName}" from project ${projectOid}.\n`);
       }
     });
 }

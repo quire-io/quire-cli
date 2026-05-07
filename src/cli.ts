@@ -134,6 +134,15 @@ Project metadata (approval categories):
   quire project approval-category update <project> <id>  [--name / --claimer / --approver / --claimers-anyone / --claimers-admins-only / ...]
   quire project approval-category remove <project> <id>  (prompts unless --yes)
 
+Project metadata (custom-field definitions):
+  quire project field add <project>          --name --type [--hidden / --private / --percent / --multiple / --clear-on-dup / --extra k=v]
+  quire project field update <project> <name>  [--type / --hidden / --private / --percent / --multiple / --extra k=v]
+  quire project field rename <project> <name> --new-name ...
+  quire project field move <project> <name>   [--before <name>] [--to-end]
+  quire project field remove <project> <name> (prompts unless --yes)
+  quire insight field add <insight-oid>       --name --type [...]   (formula / lookup only)
+  quire insight field {update / rename / move / remove}              (same flag shape as project field)
+
 Project metadata (read):
   quire tag list <project>     List tags defined on a project
   quire sublist list <project> List sublists on a project
