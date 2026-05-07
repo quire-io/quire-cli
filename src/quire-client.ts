@@ -12,9 +12,39 @@ import {
 } from "./credentials.js";
 import { NotLoggedInError } from "./errors.js";
 import { QUIRE_CLI_CLIENT_ID } from "./oauth/config.js";
+import { withRetryOn429 } from "./util/retry-after.js";
 
 export interface CreateQuireClientOptions {
   profile?: string;
+}
+
+/**
+ * Wrap every async method on a QuireClient with `withRetryOn429`. A
+ * Proxy intercepts each call once and returns a thin retrying shim;
+ * non-function properties (the client's internal state, anything
+ * accessed for inspection) pass through untouched.
+ *
+ * The original client is still usable directly if a caller needs the
+ * raw error path (e.g. live tests asserting a specific 429 message).
+ */
+function wrapWithRetry(client: QuireClient): QuireClient {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) =>
+        withRetryOn429(
+          () => (value as (...a: unknown[]) => Promise<unknown>).apply(target, args),
+          {
+            onRetry: (waitSec) => {
+              process.stderr.write(
+                `Quire API rate limited; retrying in ${waitSec}s…\n`,
+              );
+            },
+          },
+        );
+    },
+  });
 }
 
 /**
@@ -34,7 +64,7 @@ export function createQuireClient(opts: CreateQuireClientOptions = {}): QuireCli
 
   const apiServer = getApiServer();
 
-  return new QuireClient({
+  const client = new QuireClient({
     tokens: {
       accessToken: stored.accessToken,
       refreshToken: stored.refreshToken,
@@ -62,4 +92,5 @@ export function createQuireClient(opts: CreateQuireClientOptions = {}): QuireCli
       deleteCredentials(opts.profile);
     },
   });
+  return wrapWithRetry(client);
 }
