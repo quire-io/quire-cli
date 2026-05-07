@@ -30,9 +30,17 @@ export function resolveLiveClient(): LiveClientResult {
 
   const token = process.env.QUIRE_TEST_TOKEN?.trim();
   if (token) {
+    // No refresh wired — pass `expiresAt: Number.MAX_SAFE_INTEGER` so
+    // QuireClient never tries to refresh and uses the raw token directly.
+    // If the token is actually expired the API returns 401 → the test
+    // fails with a clear error and you mint a fresh one.
     return {
       client: new QuireClient({
-        tokens: { accessToken: token, refreshToken: "", expiresAt: 0 },
+        tokens: {
+          accessToken: token,
+          refreshToken: "",
+          expiresAt: Number.MAX_SAFE_INTEGER,
+        },
         apiServer,
       }),
       skip: false,
