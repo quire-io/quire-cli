@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 
 import { registerChatCommand } from "./commands/chat.js";
+import { registerColorsCommand } from "./commands/colors.js";
 import { registerCommentCommand } from "./commands/comment.js";
 import { registerDocCommand } from "./commands/doc.js";
 import { registerInsightCommand } from "./commands/insight.js";
@@ -72,6 +73,7 @@ registerChatCommand(program);
 registerDocCommand(program);
 registerInsightCommand(program);
 registerResolveCommand(program);
+registerColorsCommand(program);
 
 program.addHelpText(
   "after",
@@ -141,7 +143,10 @@ Comments (write):
 URL resolver:
   quire resolve <url>          Paste any Quire URL, get the typed resource back
 
-Write commands (Phase 5) are TODO — see PLAN.md.
+Reference:
+  quire colors                 List Quire's 48-slot palette (code, hex, name)
+
+Bulk / approval / custom-fields / recurrence / timelogs / docs / chats / insights writes (Phase 5.3+) are TODO — see PLAN.md.
 `,
 );
 

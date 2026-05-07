@@ -3,6 +3,7 @@ import { resolveColor } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
+import { longColor, shortColor } from "../output/colors.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
@@ -20,7 +21,7 @@ function normalizeColor(input: string | undefined): string | undefined {
 
 const TAG_FIELDS = [
   { label: "Name", get: (t: { nameText?: string; name: string }) => t.nameText ?? t.name },
-  { label: "Color", get: (t: { color?: string }) => t.color },
+  { label: "Color", get: (t: { color?: string }) => longColor(t.color) },
   { label: "OID", get: (t: { oid: string }) => t.oid },
   { label: "URL", get: (t: { url?: string }) => t.url },
 ];
@@ -39,7 +40,7 @@ export function registerTagCommand(program: Command): void {
       renderList(tags, root, {
         columns: [
           { header: "NAME", get: (t) => t.nameText ?? t.name },
-          { header: "COLOR", get: (t) => t.color ?? "" },
+          { header: "COLOR", get: (t) => shortColor(t.color) },
           { header: "OID", get: (t) => t.oid },
         ],
         toId: (t) => t.oid,

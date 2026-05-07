@@ -3,6 +3,7 @@ import { resolveColor } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
+import { longColor, shortColor } from "../output/colors.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
@@ -32,7 +33,7 @@ function parseStatusValue(input: string, label: string): number {
 const STATUS_FIELDS = [
   { label: "Name", get: (s: { name: string }) => s.name },
   { label: "Value", get: (s: { value: number }) => String(s.value) },
-  { label: "Color", get: (s: { color?: string }) => s.color },
+  { label: "Color", get: (s: { color?: string }) => longColor(s.color) },
   { label: "OID", get: (s: { oid?: string }) => s.oid },
 ];
 
@@ -51,7 +52,7 @@ export function registerStatusCommand(program: Command): void {
         columns: [
           { header: "VALUE", get: (s) => String(s.value) },
           { header: "NAME", get: (s) => s.name },
-          { header: "COLOR", get: (s) => s.color ?? "" },
+          { header: "COLOR", get: (s) => shortColor(s.color) },
           { header: "OID", get: (s) => s.oid ?? "" },
         ],
         toId: (s) => s.oid ?? String(s.value),
