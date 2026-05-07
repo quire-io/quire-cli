@@ -1,0 +1,39 @@
+name: Live API tests
+
+# Hits the real Quire API. Runs weekly (Monday 06:00 UTC) and on manual
+# dispatch. Requires repo secret `QUIRE_TEST_TOKEN`. The create+delete
+# canary additionally needs `QUIRE_TEST_PROJECT_OID` — set it as a repo
+# variable (not a secret; OIDs aren't sensitive but treat as you'd treat
+# any project handle). If the variable is unset the canary is skipped.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: live-api
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: live API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Live tests
+        env:
+          QUIRE_TEST_TOKEN: ${{ secrets.QUIRE_TEST_TOKEN }}
+          QUIRE_TEST_PROJECT_OID: ${{ vars.QUIRE_TEST_PROJECT_OID }}
+        run: npm run test:live

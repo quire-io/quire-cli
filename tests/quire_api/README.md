@@ -42,3 +42,13 @@ QUIRE_TEST_PROJECT_OID=<project-oid> npm run test:live
 The current suite makes ~6 GETs and (optionally) 3 writes — well under the
 60/minute limit. Keep new live tests tight: prefer reusing data from an
 earlier `getMe` / `listOrganizations` call instead of re-fetching.
+
+## CI
+
+`.github/workflows/live.yml` runs this suite weekly (Mon 06:00 UTC) and on
+manual dispatch. Configure on the repo:
+
+- **Secret** `QUIRE_TEST_TOKEN` — a long-lived access token for a test
+  account (rotate periodically).
+- **Variable** `QUIRE_TEST_PROJECT_OID` (optional) — project OID for the
+  write canary. If unset, only the read-only sweep runs.
