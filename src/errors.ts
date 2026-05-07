@@ -1,3 +1,5 @@
+import { QuireAuthRevokedError } from "@quire-io/api-client";
+
 import type { Logger } from "./log.js";
 
 // Exit codes — see PLAN.md Phase 6.
@@ -43,6 +45,12 @@ export class UserDeclinedError extends CliError {
 }
 
 export function handleError(err: unknown, log: Logger): never {
+  if (err instanceof QuireAuthRevokedError) {
+    // Refresh token is dead — `createQuireClient`'s onAuthRevoked has
+    // already wiped the credentials file. Surface a clean login prompt.
+    log.error("Your Quire credentials are no longer valid. Run `quire login` to re-authenticate.");
+    process.exit(ExitCode.NotLoggedIn);
+  }
   if (err instanceof CliError) {
     log.error(err.message);
     process.exit(err.exitCode);
