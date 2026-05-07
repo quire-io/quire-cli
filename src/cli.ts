@@ -5,8 +5,20 @@ import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
 
+import { registerLoginCommand } from "./commands/login.js";
+import { registerLogoutCommand } from "./commands/logout.js";
+import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
+
+// Exit cleanly when the downstream pipe consumer dies (e.g. `quire … | head`).
+// Without this, the next stdout.write throws an unhandled EPIPE and Node
+// crashes loudly with a stack trace — bad UX for a CLI built to compose with
+// shell pipelines (Phase 6 stdout discipline).
+process.stdout.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EPIPE") process.exit(0);
+  throw err;
+});
 
 function readVersion(): string {
   // package.json sits one level up from dist/cli.js (built) or src/cli.ts (dev via tsx).
@@ -32,18 +44,19 @@ program
   )
   .option("--yes", "Auto-confirm destructive prompts (required for non-interactive mutating commands)");
 
-// Subcommands land in Phases 3+. This help footer keeps `quire --help` useful in the meantime.
+registerLoginCommand(program);
+registerLogoutCommand(program);
+registerWhoamiCommand(program);
+
 program.addHelpText(
   "after",
   `
-Common commands (planned, not yet wired up):
-  quire login              One-time OAuth setup
+Auth commands:
+  quire login              Sign in via OAuth (loopback + PKCE)
+  quire logout             Remove the local credentials file
   quire whoami             Show the signed-in user
-  quire project list       List projects you can see
-  quire task list <proj>   List tasks in a project
-  quire task get <id>      Show a single task
 
-This CLI is pre-release; see PLAN.md for the build roadmap.
+Read / write commands (Phase 4+) are not wired up yet — see PLAN.md.
 `,
 );
 

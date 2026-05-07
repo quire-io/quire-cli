@@ -41,7 +41,8 @@
   },
   "dependencies": {
     "@quire-io/api-client": "^0.1.0",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
