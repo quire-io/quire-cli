@@ -7,6 +7,8 @@ import { Command } from "commander";
 
 import { registerLoginCommand } from "./commands/login.js";
 import { registerLogoutCommand } from "./commands/logout.js";
+import { registerOrgCommand } from "./commands/org.js";
+import { registerProjectCommand } from "./commands/project.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
@@ -42,21 +44,31 @@ program
     "--profile <name>",
     "Use a named credential profile (default: $QUIRE_PROFILE or 'default')",
   )
-  .option("--yes", "Auto-confirm destructive prompts (required for non-interactive mutating commands)");
+  .option("--yes", "Auto-confirm destructive prompts (required for non-interactive mutating commands)")
+  .option("--no-truncate", "Disable per-cell truncation in human-readable tables");
 
 registerLoginCommand(program);
 registerLogoutCommand(program);
 registerWhoamiCommand(program);
+registerOrgCommand(program);
+registerProjectCommand(program);
 
 program.addHelpText(
   "after",
   `
-Auth commands:
+Auth:
   quire login              Sign in via OAuth (loopback + PKCE)
   quire logout             Remove the local credentials file
   quire whoami             Show the signed-in user
 
-Read / write commands (Phase 4+) are not wired up yet — see PLAN.md.
+Read commands:
+  quire org list           List your organizations
+  quire org get <id>       Show one organization
+  quire project list       List projects you can see (or --org <id> to scope)
+  quire project get <id>   Show one project
+  quire project members <id>  List a project's members
+
+Task / search / write commands (Phase 4.2+) are still TODO — see PLAN.md.
 `,
 );
 
