@@ -34,7 +34,7 @@ jobs:
             output: quire-darwin-arm64
             sign: true
           - name: darwin-x64
-            runner: macos-13 # Intel runner
+            runner: macos-14 # cross-compile from Apple silicon — macos-13 Intel pool has long queue times.
             platform: darwin
             arch: x64
             output: quire-darwin-x64
