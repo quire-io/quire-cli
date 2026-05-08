@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+
 import { Command } from "commander";
 
 import { ValidationError } from "../errors.js";
@@ -141,6 +143,34 @@ export function registerProjectCommand(program: Command): void {
         ],
         toId: (m) => m.oid,
       });
+    });
+
+  project
+    .command("export <id>")
+    .description("Export the entire project as CSV (default) or JSON. Writes to stdout unless --output is set.")
+    .option("--format <fmt>", "Export format: csv | json", "csv")
+    .option("--output <file>", "Write to this path instead of stdout (use '-' for stdout, the default)")
+    .action(async (id: string, cmdOpts: { format: string; output?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      if (cmdOpts.format !== "csv" && cmdOpts.format !== "json") {
+        throw new ValidationError("--format must be one of: csv, json");
+      }
+      const oid = await client.resolveProjectOid(id);
+      const body = cmdOpts.format === "csv"
+        ? await client.exportProjectCsv(oid)
+        : await client.exportProjectJson(oid);
+      if (cmdOpts.output !== undefined && cmdOpts.output !== "-") {
+        writeFileSync(cmdOpts.output, body);
+        if (root.quiet === true) {
+          process.stdout.write(`${cmdOpts.output}\n`);
+        } else if (root.json !== true) {
+          process.stderr.write(`Wrote ${body.length} bytes to ${cmdOpts.output}.\n`);
+        }
+      } else {
+        process.stdout.write(body);
+        if (!body.endsWith("\n")) process.stdout.write("\n");
+      }
     });
 
   // -------- Approval categories (Phase 5.3 slice B) --------

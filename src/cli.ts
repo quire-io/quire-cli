@@ -87,6 +87,7 @@ Orgs / projects:
   quire project get <id>       Show one project
   quire project update <id>    Update name / description / dates / archive / public / followers
   quire project members <id>   List a project's members
+  quire project export <id>    Export the project as CSV (default) or JSON (--format json [--output file])
 
 Tasks (read):
   quire task list <project>    List tasks in a project
