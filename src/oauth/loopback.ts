@@ -22,12 +22,27 @@ h1{font-size:1.4rem}p{color:#555}</style></head>
 <body><h1>You're signed in to Quire.</h1><p>You can close this window and return to your terminal.</p></body></html>
 `;
 
+// HTML-encode `reason` before interpolation. The OAuth callback's `error`
+// and `error_description` query params are attacker-controllable (a
+// crafted link can hand any string to this code path), so unescaped
+// interpolation would be reflected XSS at the `http://127.0.0.1:<port>`
+// origin. Limited blast radius — no cross-site cookies — but a script
+// loaded here can probe other localhost services on the same machine.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function failureHtml(reason: string): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Quire CLI — login failed</title>
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:32rem;margin:5rem auto;padding:0 1rem;color:#222;text-align:center}
 h1{font-size:1.4rem;color:#b00020}p{color:#555}code{background:#f4f4f4;padding:.1rem .3rem;border-radius:3px}</style></head>
-<body><h1>Login failed</h1><p><code>${reason}</code></p><p>You can close this window.</p></body></html>
+<body><h1>Login failed</h1><p><code>${escapeHtml(reason)}</code></p><p>You can close this window.</p></body></html>
 `;
 }
 
