@@ -6,7 +6,7 @@ A command-line interface to the [Quire API](https://quire.io/dev/api/) for termi
 
 ## What it is
 
-`quire-cli` wraps the Quire REST API for direct human + shell use:
+`@quire-io/quire-cli` wraps the Quire REST API for direct human + shell use:
 
 - **Single-user, runs locally.** No server, no database. The signed-in user is whoever ran `quire login` on this machine.
 - **OAuth login** via loopback redirect + PKCE. Tokens stored in `~/.config/quire/credentials.json` (mode `0600`) or the OS keychain when available.
@@ -24,13 +24,13 @@ Once the first version ships:
 
 ```bash
 # npm (most users)
-npm i -g quire-cli
+npm i -g @quire-io/quire-cli
 
 # Homebrew tap (macOS / Linux)
 brew install quire-io/quire/quire
 
 # Try without installing
-npx quire-cli --help
+npx @quire-io/quire-cli --help
 
 # Or grab a single-file binary from GitHub Releases
 # https://github.com/quire-io/quire-cli/releases

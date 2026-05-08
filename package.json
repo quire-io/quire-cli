@@ -1,8 +1,11 @@
 {
-  "name": "quire-cli",
+  "name": "@quire-io/quire-cli",
   "version": "0.1.0",
   "description": "Command-line interface for the Quire API.",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "quire": "./dist/cli.js"
   },
