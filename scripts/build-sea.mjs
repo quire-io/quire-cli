@@ -133,6 +133,15 @@ async function main() {
     opts.nodeBinary = ensureNodeBinary(opts.platform, opts.arch);
   }
 
+  // Separately ensure a HOST-architecture Node 22 binary for generating
+  // the SEA blob. We can't `exec` the target binary when cross-compiling
+  // (e.g. Linux x64 host → linux-arm64 / win-x64 targets ENOEXEC). The
+  // blob format must come from the same Node major as the binary that
+  // will load it, so we pin both to DEFAULT_NODE_VERSION. ensureNodeBinary
+  // caches by (platform, arch), so when host == target (the common
+  // single-platform-only-build case) this is a free no-op.
+  const hostNodeBinary = ensureNodeBinary(process.platform, process.arch);
+
   // 1. Bundle src/cli.ts into a single CJS file. esbuild handles the ESM
   // → CJS conversion + dependency walking. Inline the version so the
   // bundled binary doesn't need a sibling package.json (readVersion()'s
@@ -173,11 +182,12 @@ async function main() {
     disableExperimentalSEAWarning: true,
   };
   writeFileSync(seaConfigPath, JSON.stringify(seaConfig, null, 2));
-  // Use the *target* Node binary to generate the blob, not the system's
-  // current Node — the SEA blob format can drift between Node majors,
-  // so the version that creates the blob must match the version that
-  // will load it.
-  run(opts.nodeBinary, ["--experimental-sea-config", seaConfigPath]);
+  // Generate the blob with the *host*-arch Node — we can't exec a
+  // cross-compiled Node binary (Linux x64 host can't run linux-arm64 or
+  // win-x64 binaries; macOS arm64 can't run linux binaries; etc.). Both
+  // host and target are pinned to the same DEFAULT_NODE_VERSION so the
+  // blob format matches what the target will load.
+  run(hostNodeBinary, ["--experimental-sea-config", seaConfigPath]);
 
   // 3. Copy the Node binary template to dist-bin/<output>. Remove any prior
   // build first — copyFileSync can't overwrite read-only files, and the
