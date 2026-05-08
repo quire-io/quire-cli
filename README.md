@@ -22,6 +22,9 @@ A command-line interface to the [Quire API](https://quire.io/dev/api/) for termi
 # npm (most users)
 npm i -g @quire-io/quire-cli
 
+# Homebrew (macOS / Linux)
+brew install quire-io/quire/quire
+
 # Try without installing
 npx @quire-io/quire-cli --help
 
@@ -55,6 +58,7 @@ How you update depends on how you installed:
 | Installed via | Upgrade command |
 | --- | --- |
 | `npm i -g` | `npm i -g @quire-io/quire-cli@latest` |
+| Homebrew | `brew upgrade quire` |
 | `npx` | nothing — `npx @quire-io/quire-cli` always pulls the latest unless you pinned a version |
 | GitHub Releases binary | re-download from <https://github.com/quire-io/quire-cli/releases> and replace the binary on `$PATH` |
 

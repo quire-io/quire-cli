@@ -223,3 +223,20 @@ jobs:
             dist-bin/quire-linux-arm64 \
             dist-bin/quire-win-x64.exe \
             dist-bin/SHA256SUMS
+
+  # Open a bump PR against the quire-io/homebrew-quire tap so `brew upgrade
+  # quire` picks up the new release. Default behavior of the action: PR
+  # only — merge it manually (or enable auto-merge on the tap repo) so the
+  # version + four sha256 lines actually land on the tap's main branch.
+  bump-tap:
+    name: Bump Homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump quire formula in homebrew-quire
+        uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token:    ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
+          tap:      quire-io/homebrew-quire
+          formula:  quire
+          tag:      ${{ inputs.tag || github.ref_name }}
