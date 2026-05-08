@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { Command } from "commander";
 
 import { registerChatCommand } from "./commands/chat.js";
@@ -24,6 +20,7 @@ import { registerUndoCommand } from "./commands/undo.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
+import { readVersion } from "./version.js";
 
 // Exit cleanly when the downstream pipe consumer dies (e.g. `quire … | head`).
 // Without this, the next stdout.write throws an unhandled EPIPE and Node
@@ -33,14 +30,6 @@ process.stdout.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EPIPE") process.exit(0);
   throw err;
 });
-
-function readVersion(): string {
-  // package.json sits one level up from dist/cli.js (built) or src/cli.ts (dev via tsx).
-  const here = dirname(fileURLToPath(import.meta.url));
-  const pkgPath = join(here, "..", "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version: string };
-  return pkg.version;
-}
 
 const program = new Command();
 

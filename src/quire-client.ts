@@ -13,6 +13,7 @@ import {
 import { NotLoggedInError } from "./errors.js";
 import { QUIRE_CLI_CLIENT_ID } from "./oauth/config.js";
 import { withRetryOn429 } from "./util/retry-after.js";
+import { readVersion } from "./version.js";
 
 export interface CreateQuireClientOptions {
   profile?: string;
@@ -71,6 +72,7 @@ export function createQuireClient(opts: CreateQuireClientOptions = {}): QuireCli
       expiresAt: stored.expiresAt,
     },
     apiServer,
+    headers: { "User-Agent": `quire-cli/${readVersion()}` },
     refreshTokens: (refreshToken) =>
       apiRefreshTokens({
         apiServer,
