@@ -19,11 +19,13 @@ export function openUrl(url: string): Promise<void> {
       cmd = "open";
       args = [url];
     } else if (process.platform === "win32") {
-      // `start` is a cmd.exe builtin, not a separate executable. The empty
-      // "" before url is the (otherwise positional) window title — without
-      // it, `start "https://…"` would treat the URL as the title.
-      cmd = "cmd";
-      args = ["/c", "start", "", url];
+      // Use PowerShell's Start-Process instead of `cmd /c start` because
+      // cmd.exe treats `&` as a command separator even in the middle of a URL,
+      // splitting `?response_type=code&client_id=…` into multiple commands.
+      // PowerShell single-quoted strings are literal — `&` is not interpreted.
+      // URL-encoded paths never contain `'` (%27), so single-quoting is safe.
+      cmd = "powershell";
+      args = ["-NoProfile", "-NonInteractive", "-Command", `Start-Process '${url}'`];
     } else {
       cmd = "xdg-open";
       args = [url];
