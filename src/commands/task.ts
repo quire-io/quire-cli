@@ -592,6 +592,25 @@ export function registerTaskCommand(program: Command): void {
     });
 
   task
+    .command("bulk-subtasks <parent>")
+    .description("Create many subtasks under one parent atomically (max 300/call). <parent> = OID, slug/#N, or URL.")
+    .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
+    .option("--position <pos>", "Insert position: parent | before | after (default: server's submit-order)")
+    .action(async (parent: string, cmdOpts: { fromFile: string; position?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      if (cmdOpts.position !== undefined && !["parent", "before", "after"].includes(cmdOpts.position)) {
+        throw new ValidationError("--position must be one of: parent, before, after");
+      }
+      const parentOid = await resolveTaskOid(client, parent);
+      const items = await readBulkItems(cmdOpts.fromFile);
+      const results = await client.bulkCreateSubtasks(parentOid, items, {
+        ...(cmdOpts.position !== undefined ? { position: cmdOpts.position as "parent" | "before" | "after" } : {}),
+      });
+      renderBulkResults(results, root);
+    });
+
+  task
     .command("bulk-update <project>")
     .description("Update many tasks atomically. Each item must include `oid`.")
     .requiredOption("--from-file <file>", "JSON array of update objects (or '-' for stdin)")
