@@ -48,6 +48,18 @@ quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 
 Run `quire --help` (or `quire <command> --help`) for the full command reference.
 
+## Updating
+
+How you update depends on how you installed:
+
+| Installed via | Upgrade command |
+| --- | --- |
+| `npm i -g` | `npm i -g @quire-io/quire-cli@latest` |
+| `npx` | nothing — `npx @quire-io/quire-cli` always pulls the latest unless you pinned a version |
+| GitHub Releases binary | re-download from <https://github.com/quire-io/quire-cli/releases> and replace the binary on `$PATH` |
+
+Check your installed version with `quire --version` and compare against the [Releases page](https://github.com/quire-io/quire-cli/releases).
+
 ## Signing out
 
 `quire logout` removes the local credentials file. It does **not** revoke
