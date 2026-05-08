@@ -86,8 +86,25 @@ jobs:
             --output ${{ matrix.output }}
 
       # ---- macOS only: import Developer ID cert, sign, notarize -----
-      - name: Import Developer ID certificate (macOS)
+      # Gated on the secret being non-empty so we can ship unsigned binaries
+      # before Apple Developer ID enrollment is complete. Unsigned macOS
+      # binaries trip Gatekeeper on first launch — acceptable for a smoke
+      # test, but flip the secret to enable real distribution.
+      - name: Check for signing secrets (macOS)
         if: matrix.sign
+        id: signing_check
+        env:
+          APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+        run: |
+          if [ -n "$APPLE_DEVELOPER_ID_CERT" ]; then
+            echo "do_sign=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::APPLE_DEVELOPER_ID_CERT not set — uploading an unsigned macOS binary. Gatekeeper will block first launch until the user approves it manually."
+            echo "do_sign=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import Developer ID certificate (macOS)
+        if: matrix.sign && steps.signing_check.outputs.do_sign == 'true'
         env:
           APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
           APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
@@ -111,7 +128,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Codesign + notarize (macOS)
-        if: matrix.sign
+        if: matrix.sign && steps.signing_check.outputs.do_sign == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
