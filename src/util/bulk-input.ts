@@ -1,20 +1,18 @@
-import { readFileSync } from "node:fs";
-
 import { ValidationError } from "../errors.js";
+import { readBytesWithLimit } from "./read-sized.js";
+
+// Cap bulk-input files at 25 MiB. A 300-task bulk payload (the server's
+// per-call ceiling) fits comfortably in well under 1 MiB; 25 MiB is the
+// "you almost certainly aimed at the wrong file" line.
+const MAX_BULK_BYTES = 25 * 1024 * 1024;
 
 /**
  * Read text from a file path or stdin (`-`). Used by the bulk subcommands
  * so users can either point at a file or pipe `jq` output directly.
  */
 export async function readFromFile(filename: string): Promise<string> {
-  if (filename === "-") {
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) {
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks).toString("utf8");
-  }
-  return readFileSync(filename, "utf8");
+  const bytes = await readBytesWithLimit(filename, MAX_BULK_BYTES, "--from-file input");
+  return bytes.toString("utf8");
 }
 
 /**

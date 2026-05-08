@@ -1,7 +1,12 @@
-import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { ValidationError } from "../errors.js";
+import { readBytesWithLimit } from "./read-sized.js";
+
+// Cap attachments at 100 MiB. The Quire server enforces its own ceiling
+// further down the stack; this is a sanity check so an accidental
+// `attach <id> /var/log/system.log` fails fast instead of OOMing the CLI.
+const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 
 const CONTENT_TYPE_BY_EXT: Readonly<Record<string, string>> = {
   ".bmp": "image/bmp",
@@ -49,21 +54,13 @@ export async function resolveAttachInput(
   path: string,
   opts: ResolveAttachOptions = {},
 ): Promise<AttachInput> {
-  let bytes: Uint8Array;
-  let filename: string;
-
-  if (path === "-") {
-    if (opts.filename === undefined) {
-      throw new ValidationError("--filename is required when reading attachment data from stdin (`-`).");
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-    bytes = Buffer.concat(chunks);
-    filename = opts.filename;
-  } else {
-    bytes = readFileSync(path);
-    filename = opts.filename ?? basename(path);
+  if (path === "-" && opts.filename === undefined) {
+    throw new ValidationError("--filename is required when reading attachment data from stdin (`-`).");
   }
+  const bytes = await readBytesWithLimit(path, MAX_ATTACHMENT_BYTES, "Attachment");
+  const filename = path === "-"
+    ? (opts.filename as string)
+    : opts.filename ?? basename(path);
 
   if (filename.includes("/")) {
     throw new ValidationError(`Attachment filename cannot contain "/" — got "${filename}".`);

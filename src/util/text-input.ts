@@ -1,4 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readBytesWithLimit } from "./read-sized.js";
+
+// Cap text inputs (descriptions, comments, notification messages) at
+// 5 MiB. Anything bigger is almost certainly the wrong file.
+const MAX_TEXT_BYTES = 5 * 1024 * 1024;
 
 /**
  * Resolve a `--text`-style flag value into actual text. Three forms:
@@ -13,14 +17,12 @@ import { readFileSync } from "node:fs";
  */
 export async function resolveTextInput(value: string): Promise<string> {
   if (value === "-") {
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) {
-      chunks.push(chunk as Buffer);
-    }
-    return Buffer.concat(chunks).toString("utf8");
+    const bytes = await readBytesWithLimit("-", MAX_TEXT_BYTES, "Text input");
+    return bytes.toString("utf8");
   }
   if (value.startsWith("@")) {
-    return readFileSync(value.slice(1), "utf8");
+    const bytes = await readBytesWithLimit(value.slice(1), MAX_TEXT_BYTES, "Text input");
+    return bytes.toString("utf8");
   }
   return value;
 }
