@@ -103,11 +103,14 @@ jobs:
             echo "do_sign=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Import Developer ID certificate (macOS)
+      - name: Import Developer ID certificate + notarytool credentials (macOS)
         if: matrix.sign && steps.signing_check.outputs.do_sign == 'true'
         env:
           APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
           APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           # Import the base64-encoded p12 into a fresh keychain so the
           # private key is unlocked for `codesign`. The keychain is
@@ -127,14 +130,25 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychain -d user | sed -e 's/[\"\"]//g')
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
+          # Stash the notarytool credentials in the same ephemeral keychain
+          # under a named profile. The submit step then references the
+          # profile instead of passing --apple-id/--password/--team-id on
+          # argv each call. Argv exposure of $APPLE_APP_PASSWORD shrinks
+          # from the duration of the notarization wait (potentially several
+          # minutes) to this single store-credentials call (~1 second).
+          xcrun notarytool store-credentials "quire-notarize" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --keychain "$KEYCHAIN_PATH"
+
       - name: Codesign + notarize (macOS)
         if: matrix.sign && steps.signing_check.outputs.do_sign == 'true'
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           BIN="dist-bin/${{ matrix.output }}"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
 
           # Re-sign over the ad-hoc signature build-sea.mjs leaves behind.
           # `--options runtime` enables the hardened runtime, required
@@ -149,10 +163,11 @@ jobs:
           ZIP="$RUNNER_TEMP/${{ matrix.output }}.zip"
           ditto -c -k --keepParent "$BIN" "$ZIP"
 
+          # Submit using the stored profile from the previous step (no
+          # --apple-id / --password / --team-id on argv during the wait).
           xcrun notarytool submit "$ZIP" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
+            --keychain-profile "quire-notarize" \
+            --keychain "$KEYCHAIN_PATH" \
             --wait
 
           # Stapling a bare binary isn't supported (only .app/.dmg/.pkg).
