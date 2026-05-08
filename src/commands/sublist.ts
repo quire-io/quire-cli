@@ -39,6 +39,16 @@ export function registerSublistCommand(program: Command): void {
     });
 
   sublist
+    .command("get <oid>")
+    .description("Show one sublist.")
+    .action(async (oid: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const s = await client.getSublist(oid);
+      renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
+    });
+
+  sublist
     .command("create <project>")
     .description("Create a sublist in a project.")
     .requiredOption("--name <name>", "Sublist name (required)")

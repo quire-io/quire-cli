@@ -60,6 +60,18 @@ export function registerStatusCommand(program: Command): void {
     });
 
   status
+    .command("get <project> <value>")
+    .description("Show one status. <value> = numeric slot (0-100).")
+    .action(async (project: string, valueArg: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const projectOid = await client.resolveProjectOid(project);
+      const value = parseStatusValue(valueArg, "<value>");
+      const s = await client.getStatus(projectOid, value);
+      renderObject(s, root, { fields: STATUS_FIELDS, toId: (s) => s.oid ?? String(s.value) });
+    });
+
+  status
     .command("create <project>")
     .description("Create a custom status on a project.")
     .requiredOption("--name <name>", "Status name (required)")

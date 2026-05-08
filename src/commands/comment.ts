@@ -54,6 +54,16 @@ export function registerCommentCommand(program: Command): void {
     });
 
   comment
+    .command("get <oid>")
+    .description("Show one comment.")
+    .action(async (oid: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const c = await client.getComment(oid);
+      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
+    });
+
+  comment
     .command("add <task-id>")
     .description("Add a comment to a task. --text accepts '-' (stdin) or '@file' for long content.")
     .requiredOption("--text <text>", "Comment text; use '-' for stdin or '@/path/to/file' to read from disk.")

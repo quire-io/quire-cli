@@ -48,6 +48,16 @@ export function registerTagCommand(program: Command): void {
     });
 
   tag
+    .command("get <oid>")
+    .description("Show one tag.")
+    .action(async (oid: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const t = await client.getTag(oid);
+      renderObject(t, root, { fields: TAG_FIELDS, toId: (t) => t.oid });
+    });
+
+  tag
     .command("create <project>")
     .description("Create a tag in a project.")
     .requiredOption("--name <name>", "Tag name (required)")

@@ -19,6 +19,7 @@ import { registerSublistCommand } from "./commands/sublist.js";
 import { registerTagCommand } from "./commands/tag.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerUndoCommand } from "./commands/undo.js";
+import { registerUserCommand } from "./commands/user.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
@@ -53,6 +54,7 @@ program
 registerLoginCommand(program);
 registerLogoutCommand(program);
 registerWhoamiCommand(program);
+registerUserCommand(program);
 registerOrgCommand(program);
 registerProjectCommand(program);
 registerPartnerCommand(program);
@@ -77,6 +79,7 @@ Auth:
   quire login                  Sign in via OAuth (loopback + PKCE)
   quire logout                 Remove the local credentials file
   quire whoami                 Show the signed-in user
+  quire user get <oid>         Show one user by OID
 
 Orgs / projects:
   quire org list               List your organizations
@@ -144,9 +147,9 @@ Project metadata (custom-field definitions):
   quire insight field {update / rename / move / remove}              (same flag shape as project field)
 
 Project metadata (read):
-  quire tag list <project>      List tags defined on a project
-  quire sublist list <project>  List sublists on a project
-  quire status list <project>   List custom statuses on a project
+  quire tag list <project>      List tags defined on a project (also: 'tag get <oid>')
+  quire sublist list <project>  List sublists on a project (also: 'sublist get <oid>')
+  quire status list <project>   List custom statuses on a project (also: 'status get <project> <value>')
   quire partner list <project>  List partner orgs (external teams) on a project
   quire partner get <oid>       Show one partner organization
 
@@ -165,7 +168,7 @@ Project metadata (write):
   quire status delete <project> <value>  Delete a status (prompts unless --yes)
 
 Comments / chats / docs / insights (read):
-  quire comment list <task>    List comments on a task (alias for "quire task comments")
+  quire comment list <task>    List comments on a task (alias for "quire task comments"; also: 'comment get <oid>')
   quire chat list <project>    List chats / chat get <id> / chat comments <id>
   quire doc list <project>     List documents / doc get <id>
   quire insight list <project> List insights / insight get <id>
