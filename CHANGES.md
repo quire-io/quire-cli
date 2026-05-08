@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.1 — 2026-05-08
+
+Switch OAuth to the production Quire CLI app, plus a round of input-handling and OAuth-flow hardening.
+
+### Auth
+
+- **OAuth `client_id` switched** from the development Quire CLI app to the production app. Existing 0.1.0 users will need to re-run `quire login` after upgrading; refresh tokens issued by the dev app no longer work.
+- OAuth loopback callback validates the `Host` header before completing the redirect.
+- HTML-escaped messages on the OAuth loopback failure page.
+- `quire logout --help` documents the no-server-revoke caveat: local credentials are deleted, but the refresh token remains valid server-side until the user removes the app from <https://quire.io/apps>.
+
+### Input handling
+
+- `quire task attach`, `quire comment attach`, `--from-file`, and `--text @file` now cap input size and tighten filename validation (no path separators, length-limited).
+
+### Reliability
+
+- 429 retry sleep gains ±10% jitter to spread out retry storms when many CLI processes hit the limit at once.
+- Stderr warning when `QUIRE_API_SERVER` is set — surfaces non-default targets on every command.
+
+### Build
+
+- SEA-binary build verifies the auto-downloaded Node archive against a pinned SHA-256.
+- macOS notarization stores credentials in a temporary keychain instead of passing them on `argv`.
+
 ## 0.1.0 — 2026-05-08
 
 Initial release.
