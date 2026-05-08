@@ -42,6 +42,31 @@ export function ensureConfigDir(configDir: string): void {
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
 }
 
+export const DEFAULT_API_SERVER = "https://quire.io";
+
 export function getApiServer(): string {
-  return process.env.QUIRE_API_SERVER ?? "https://quire.io";
+  return process.env.QUIRE_API_SERVER ?? DEFAULT_API_SERVER;
+}
+
+// Per-process one-shot guard so repeated callers (cli startup + login)
+// don't print the warning multiple times in the same invocation.
+let apiServerWarned = false;
+
+/**
+ * Print a stderr warning the first time it's called when `QUIRE_API_SERVER`
+ * is set to something other than the default. A persistent override (set
+ * in `.bashrc` or a parent shell) silently routes the OAuth flow through
+ * an attacker-controlled origin; a one-line warning gives the user a
+ * chance to spot it before clicking through the browser redirect.
+ */
+export function warnIfNonDefaultApiServer(): void {
+  if (apiServerWarned) return;
+  const override = process.env.QUIRE_API_SERVER;
+  if (!override || override === DEFAULT_API_SERVER) return;
+  apiServerWarned = true;
+  const useColor = process.stderr.isTTY === true && !process.env.NO_COLOR;
+  const prefix = useColor ? "\x1b[33mwarning:\x1b[0m" : "warning:";
+  process.stderr.write(
+    `${prefix} using non-default API server ${override} (set via QUIRE_API_SERVER)\n`,
+  );
 }

@@ -21,6 +21,7 @@ import { registerTaskCommand } from "./commands/task.js";
 import { registerUndoCommand } from "./commands/undo.js";
 import { registerUserCommand } from "./commands/user.js";
 import { registerWhoamiCommand } from "./commands/whoami.js";
+import { warnIfNonDefaultApiServer } from "./config.js";
 import { handleError } from "./errors.js";
 import { createLogger } from "./log.js";
 import { readVersion } from "./version.js";
@@ -209,6 +210,7 @@ Reference:
 );
 
 async function main(): Promise<void> {
+  warnIfNonDefaultApiServer();
   await program.parseAsync(process.argv);
 }
 
