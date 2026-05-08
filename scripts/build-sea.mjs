@@ -20,6 +20,7 @@
 //      CI overwrites this with the real Developer ID signature.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +38,24 @@ const SEA_FUSE = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
 // Node version we download when --node-binary is omitted. Pinned to a
 // recent LTS so SEA semantics stay stable. Bump when a new LTS lands.
 const DEFAULT_NODE_VERSION = "v22.10.0";
+
+// Pinned SHA-256 hashes for the official Node archives we download.
+// Source: https://nodejs.org/dist/v22.10.0/SHASUMS256.txt
+//
+// Hardcoding (rather than fetching SHASUMS256.txt at build time) means
+// a future nodejs.org compromise can't slip a tampered binary into our
+// releases — the trusted hashes ride in our git history. Tradeoff: a
+// `DEFAULT_NODE_VERSION` bump requires updating these five entries.
+//
+// To refresh: `curl -sSL https://nodejs.org/dist/<VER>/SHASUMS256.txt | grep -E '(darwin|linux|win)-(arm64|x64)\\.(tar\\.gz|zip)$'`
+// (filter out the headers / msi / musl / x86 lines).
+const NODE_ARCHIVE_SHA256 = {
+  "darwin-arm64": "75e5b78d59187ca936e67f0b88a6db913f4ab8bb83a27a1d0a34f98089cb4f77",
+  "darwin-x64":   "f8d4a064d3edd49900187e301424a7d7d30f75b60f618811d2aad80b665b42d5",
+  "linux-arm64":  "17abee3dfe6ffcda95cab08bb5f43de7f88d04e9607c517e701c6e623358dc7c",
+  "linux-x64":    "674fef1891cc9927b5dc2b0ee2399b77f6621e6b3157f563a9e9491ad3db107b",
+  "win-x64":      "d68dce8f7a73305a496e719485ca6647387d9410cb7eb5933b5d9b4afc5593bd",
+};
 
 function parseArgs(argv) {
   const out = {
@@ -92,26 +111,47 @@ function nodeDownloadUrl(version, platform, arch) {
   return `https://nodejs.org/dist/${version}/node-${version}-${osTag}-${arch}.${ext}`;
 }
 
+function verifyArchiveSha(archivePath, archKey) {
+  const expected = NODE_ARCHIVE_SHA256[archKey];
+  if (expected === undefined) {
+    throw new Error(`No pinned SHA-256 for ${archKey}. Update NODE_ARCHIVE_SHA256 in scripts/build-sea.mjs.`);
+  }
+  const actual = createHash("sha256").update(readFileSync(archivePath)).digest("hex");
+  if (actual !== expected) {
+    // Failing closed: refuse to extract a Node archive whose hash doesn't
+    // match the pinned value. Treat this as a supply-chain alarm — do not
+    // overwrite the cached file silently.
+    throw new Error(
+      `SHA-256 mismatch for ${archivePath}\n  expected: ${expected}\n  actual:   ${actual}\n` +
+        `If this is a deliberate Node version bump, regenerate the pinned hash from\n` +
+        `https://nodejs.org/dist/${DEFAULT_NODE_VERSION}/SHASUMS256.txt`,
+    );
+  }
+}
+
 function ensureNodeBinary(platform, arch) {
   const cacheRoot = resolve(SEA_DIR, "cache");
   mkdirSync(cacheRoot, { recursive: true });
   const osTag = platform === "darwin" ? "darwin" : platform === "win32" ? "win" : "linux";
-  const dirname = `node-${DEFAULT_NODE_VERSION}-${osTag}-${arch}`;
+  const archKey = `${osTag}-${arch}`;
+  const dirname = `node-${DEFAULT_NODE_VERSION}-${archKey}`;
   const extractedRoot = resolve(cacheRoot, dirname);
   const binPath = platform === "win32"
     ? resolve(extractedRoot, "node.exe")
     : resolve(extractedRoot, "bin", "node");
   if (existsSync(binPath)) return binPath;
 
-  process.stderr.write(`Downloading Node ${DEFAULT_NODE_VERSION} for ${osTag}-${arch}…\n`);
+  process.stderr.write(`Downloading Node ${DEFAULT_NODE_VERSION} for ${archKey}…\n`);
   const url = nodeDownloadUrl(DEFAULT_NODE_VERSION, platform, arch);
   if (platform === "win32") {
     const zipPath = resolve(cacheRoot, `${dirname}.zip`);
     run("curl", ["-fsSL", "-o", zipPath, url]);
+    verifyArchiveSha(zipPath, archKey);
     run("unzip", ["-q", "-o", zipPath, "-d", cacheRoot]);
   } else {
     const tarPath = resolve(cacheRoot, `${dirname}.tar.gz`);
     run("curl", ["-fsSL", "-o", tarPath, url]);
+    verifyArchiveSha(tarPath, archKey);
     run("tar", ["xzf", tarPath, "-C", cacheRoot]);
   }
   if (!existsSync(binPath)) {
