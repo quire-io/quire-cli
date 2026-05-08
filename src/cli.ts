@@ -10,6 +10,7 @@ import { registerLoginCommand } from "./commands/login.js";
 import { registerLogoutCommand } from "./commands/logout.js";
 import { registerMineCommand } from "./commands/mine.js";
 import { registerOrgCommand } from "./commands/org.js";
+import { registerPartnerCommand } from "./commands/partner.js";
 import { registerProjectCommand } from "./commands/project.js";
 import { registerResolveCommand } from "./commands/resolve.js";
 import { registerStatusCommand } from "./commands/status.js";
@@ -53,6 +54,7 @@ registerLogoutCommand(program);
 registerWhoamiCommand(program);
 registerOrgCommand(program);
 registerProjectCommand(program);
+registerPartnerCommand(program);
 registerTaskCommand(program);
 registerMineCommand(program);
 registerTagCommand(program);
@@ -137,9 +139,11 @@ Project metadata (custom-field definitions):
   quire insight field {update / rename / move / remove}              (same flag shape as project field)
 
 Project metadata (read):
-  quire tag list <project>     List tags defined on a project
-  quire sublist list <project> List sublists on a project
-  quire status list <project>  List custom statuses on a project
+  quire tag list <project>      List tags defined on a project
+  quire sublist list <project>  List sublists on a project
+  quire status list <project>   List custom statuses on a project
+  quire partner list <project>  List partner orgs (external teams) on a project
+  quire partner get <oid>       Show one partner organization
 
 Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
