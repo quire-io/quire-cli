@@ -33,8 +33,9 @@ export function registerLogoutCommand(program: Command): void {
 
       deleteCredentials(root.profile);
       if (root.quiet !== true) {
-        log.info(
-          `Logged out — removed ${credentialsPath}. To revoke the token on the Quire server, remove the app at https://quire.io/apps.`,
+        log.info(`Logged out — removed ${credentialsPath}.`);
+        log.warn(
+          "the refresh token is still valid on the Quire server. To fully revoke it, remove the app at https://quire.io/apps.",
         );
       }
     });

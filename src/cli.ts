@@ -78,7 +78,7 @@ program.addHelpText(
   `
 Auth:
   quire login                  Sign in via OAuth (loopback + PKCE)
-  quire logout                 Remove the local credentials file
+  quire logout                 Remove local credentials (server-side token stays valid; revoke at quire.io/apps)
   quire whoami                 Show the signed-in user
   quire user get <oid>         Show one user by OID
 

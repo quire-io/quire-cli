@@ -55,6 +55,16 @@ quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 
 Full command reference will be added once the first commands land.
 
+## Signing out
+
+`quire logout` removes the local credentials file. It does **not** revoke
+the OAuth refresh token on the Quire server — the public-PKCE flow gives
+the CLI no way to authenticate a revoke call.
+
+If you're signing out because the device is lost or compromised, also visit
+<https://quire.io/apps> and remove the Quire CLI app to invalidate the
+refresh token server-side.
+
 ## Related
 
 - [Quire](https://quire.io) — the product this CLI talks to.
