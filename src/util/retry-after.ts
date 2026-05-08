@@ -3,8 +3,7 @@
  * "rate limited" error, parses the retry-after value from the error
  * message (set by `@quire-io/api-client`'s `formatQuireError`), waits,
  * and retries one time. Above the cap (default 60s) or when the wait
- * value is unparseable, throws a `CliError` with exit code 2 and a
- * "rate limited; retry in N s" message — matching PLAN.md Phase 6.
+ * value is unparseable, throws a `CliError` with exit code 2.
  *
  * 429 means the server did no work, so retrying is always idempotent —
  * the wrapped function can be a single GET, a single write, or a

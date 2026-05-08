@@ -1,6 +1,5 @@
 import { exchangeCode, QuireClient } from "@quire-io/api-client";
 import { Command } from "commander";
-import open from "open";
 
 import { getApiServer, resolveConfigPaths } from "../config.js";
 import { writeCredentials } from "../credentials.js";
@@ -9,6 +8,7 @@ import { createLogger } from "../log.js";
 import { QUIRE_CLI_CLIENT_ID, QUIRE_CLI_LOOPBACK_PORT } from "../oauth/config.js";
 import { startLoopbackServer } from "../oauth/loopback.js";
 import { generatePkce, generateState } from "../oauth/pkce.js";
+import { openUrl } from "../util/open-url.js";
 
 interface GlobalOpts {
   verbose?: boolean;
@@ -45,10 +45,10 @@ export function registerLoginCommand(program: Command): void {
         log.info(`If the browser does not open, paste this URL:\n  ${url}`);
 
         try {
-          await open(url);
+          await openUrl(url);
         } catch (err) {
           // Headless / no browser available — the URL was already printed.
-          log.debug(`open() failed: ${(err as Error).message}`);
+          log.debug(`openUrl() failed: ${(err as Error).message}`);
         }
 
         const result = await server.waitForCallback();

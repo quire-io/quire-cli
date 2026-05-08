@@ -1,0 +1,193 @@
+# Builds 5 Node SEA binaries on tagged releases (v*) and attaches them
+# to the GitHub Release. macOS targets are Developer-ID-signed and
+# notarized via xcrun notarytool. SHA-256 sums for every artifact land
+# alongside the binaries in a SHA256SUMS file (the Homebrew tap reads
+# hashes from there).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.1.0). Must already exist on origin."
+        required: true
+
+permissions:
+  contents: write # to create the GitHub Release + upload assets
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: darwin-arm64
+            runner: macos-14 # Apple silicon runner
+            platform: darwin
+            arch: arm64
+            output: quire-darwin-arm64
+            sign: true
+          - name: darwin-x64
+            runner: macos-13 # Intel runner
+            platform: darwin
+            arch: x64
+            output: quire-darwin-x64
+            sign: true
+          - name: linux-x64
+            runner: ubuntu-latest
+            platform: linux
+            arch: x64
+            output: quire-linux-x64
+            sign: false
+          - name: linux-arm64
+            runner: ubuntu-latest
+            platform: linux
+            arch: arm64
+            output: quire-linux-arm64
+            sign: false
+          - name: win-x64
+            runner: ubuntu-latest # cross-compile from Linux; pkg of OS for SEA isn't needed
+            platform: win32
+            arch: x64
+            output: quire-win-x64.exe
+            sign: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck + tests
+        run: |
+          npm run typecheck
+          npm test
+
+      # `npm run package` downloads the official Node binary for the
+      # target platform/arch via build-sea.mjs (homebrew Node lacks the
+      # SEA fuse, so we never trust the runner's Node for the template).
+      - name: Build SEA binary
+        run: |
+          node scripts/build-sea.mjs \
+            --platform ${{ matrix.platform }} \
+            --arch ${{ matrix.arch }} \
+            --output ${{ matrix.output }}
+
+      # ---- macOS only: import Developer ID cert, sign, notarize -----
+      - name: Import Developer ID certificate (macOS)
+        if: matrix.sign
+        env:
+          APPLE_DEVELOPER_ID_CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERT }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          # Import the base64-encoded p12 into a fresh keychain so the
+          # private key is unlocked for `codesign`. The keychain is
+          # ephemeral (lives only for this job).
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          echo "$APPLE_DEVELOPER_ID_CERT" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychain -d user | sed -e 's/[\"\"]//g')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Codesign + notarize (macOS)
+        if: matrix.sign
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          BIN="dist-bin/${{ matrix.output }}"
+
+          # Re-sign over the ad-hoc signature build-sea.mjs leaves behind.
+          # `--options runtime` enables the hardened runtime, required
+          # for notarization.
+          codesign --force \
+            --sign "Developer ID Application: $APPLE_TEAM_ID" \
+            --options runtime \
+            --timestamp \
+            "$BIN"
+
+          # notarytool needs a container — zip the bare binary.
+          ZIP="$RUNNER_TEMP/${{ matrix.output }}.zip"
+          ditto -c -k --keepParent "$BIN" "$ZIP"
+
+          xcrun notarytool submit "$ZIP" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Stapling a bare binary isn't supported (only .app/.dmg/.pkg).
+          # The notarization ticket is fetched on first run if the user
+          # is online — acceptable for a CLI; revisit if users complain.
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: dist-bin/${{ matrix.output }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten + compute SHA256SUMS
+        run: |
+          mkdir -p dist-bin
+          # Each artifact lands in its own subdir matching the artifact
+          # name; flatten them into dist-bin/.
+          find artifacts -mindepth 2 -maxdepth 2 -type f -exec mv {} dist-bin/ \;
+          chmod +x dist-bin/quire-darwin-* dist-bin/quire-linux-* || true
+          ls -lh dist-bin/
+
+          (cd dist-bin && shasum -a 256 quire-* > SHA256SUMS)
+          cat dist-bin/SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          NOTES="Automated release of $TAG. See [CHANGES.md](https://github.com/${{ github.repository }}/blob/$TAG/CHANGES.md) for details."
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES" \
+            --verify-tag \
+            dist-bin/quire-darwin-arm64 \
+            dist-bin/quire-darwin-x64 \
+            dist-bin/quire-linux-x64 \
+            dist-bin/quire-linux-arm64 \
+            dist-bin/quire-win-x64.exe \
+            dist-bin/SHA256SUMS

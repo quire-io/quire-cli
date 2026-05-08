@@ -205,8 +205,6 @@ Notifications:
 
 Reference:
   quire colors                 List Quire's 48-slot palette (code, hex, name)
-
-Bulk / approval / custom-fields / recurrence / timelogs / docs / chats / insights writes (Phase 5.3+) are TODO — see PLAN.md.
 `,
 );
 

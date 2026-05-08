@@ -7,7 +7,7 @@
 //
 // !!! Development client_id !!!
 // This is the *development* OAuth app. Swap for the production `client_id`
-// before cutting the first public release — see PUBLISH.md release checklist.
+// before cutting the first public release.
 export const QUIRE_CLI_CLIENT_ID = ":0000mVxxApzA5wCng9iFk3Nzw0v";
 
 // Fixed loopback port for the OAuth callback. The Quire OAuth app form

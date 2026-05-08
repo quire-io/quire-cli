@@ -1,6 +1,6 @@
 /**
  * Routes a command's data into the right output sink based on the user's
- * global flags. Three modes — see PLAN.md Phase 0 / Phase 6:
+ * global flags. Three modes:
  *   - `--json` — raw JSON to stdout (round-trips back to the API)
  *   - `--quiet` — id-only, one per line, designed for `xargs`
  *   - default — human-readable table (lists) or key/value (single objects)

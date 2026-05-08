@@ -2,7 +2,6 @@ import { QuireAuthRevokedError } from "@quire-io/api-client";
 
 import type { Logger } from "./log.js";
 
-// Exit codes — see PLAN.md Phase 6.
 export const ExitCode = {
   Success: 0,
   NotLoggedIn: 1,
