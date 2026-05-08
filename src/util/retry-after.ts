@@ -61,7 +61,10 @@ export async function withRetryOn429<T>(
       );
     }
     opts.onRetry?.(waitSec);
-    await sleep(waitSec * 1000);
+    // Add ±10% jitter so N parallel CLIs that all tripped the limit
+    // don't wake up at exactly the same instant and stampede again.
+    const jitterMs = waitSec * 1000 * (0.9 + Math.random() * 0.2);
+    await sleep(Math.ceil(jitterMs));
     return await fn();
   }
 }

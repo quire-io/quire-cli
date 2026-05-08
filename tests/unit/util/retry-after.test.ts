@@ -5,6 +5,10 @@ import { withRetryOn429 } from "../../../src/util/retry-after.js";
 describe("withRetryOn429", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // Pin Math.random so the ±10% jitter resolves to exactly the
+    // indicated retry-after value: factor = 0.9 + 0.5*0.2 = 1.0.
+    // Tests that exercise jitter explicitly override this.
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
   });
 
   afterEach(() => {
@@ -88,5 +92,38 @@ describe("withRetryOn429", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await promise;
     expect(onRetry).toHaveBeenCalledWith(30);
+  });
+
+  it("applies ±10% jitter to the retry sleep", async () => {
+    // random=0.0 → factor 0.9 → sleep = 9000ms (10% under)
+    vi.spyOn(Math, "random").mockReturnValue(0.0);
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Quire API error 429 (rate limited — retry after 10s)"))
+      .mockResolvedValueOnce("ok");
+    const promise = withRetryOn429(fn);
+    // 8999ms isn't enough — fn should still be on its first invocation.
+    await vi.advanceTimersByTimeAsync(8_999);
+    expect(fn).toHaveBeenCalledTimes(1);
+    // Crossing 9000ms triggers the retry.
+    await vi.advanceTimersByTimeAsync(2);
+    await expect(promise).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("upper-bound jitter: random=1.0 → sleep is 1.1× the indicated wait", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(1.0);
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Quire API error 429 (rate limited — retry after 10s)"))
+      .mockResolvedValueOnce("ok");
+    const promise = withRetryOn429(fn);
+    // Advancing exactly the indicated wait isn't enough — sleep is 11000ms.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fn).toHaveBeenCalledTimes(1);
+    // Cross the 11_000ms mark.
+    await vi.advanceTimersByTimeAsync(1_001);
+    await expect(promise).resolves.toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 });
