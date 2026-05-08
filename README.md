@@ -2,8 +2,6 @@
 
 A command-line interface to the [Quire API](https://quire.io/dev/api/) for terminal users and shell scripts.
 
-> **Status: pre-release.** Active development; the first published version will be tagged here as `v0.1.0`.
-
 ## What it is
 
 `@quire-io/quire-cli` wraps the Quire REST API for direct human + shell use:
@@ -18,16 +16,11 @@ A command-line interface to the [Quire API](https://quire.io/dev/api/) for termi
 - Not a hosted / SaaS tool — runs on your laptop.
 - Not an interactive TUI dashboard — v1 is headless subcommands only.
 
-## Install (planned)
-
-Once the first version ships:
+## Install
 
 ```bash
 # npm (most users)
 npm i -g @quire-io/quire-cli
-
-# Homebrew tap (macOS / Linux)
-brew install quire-io/quire/quire
 
 # Try without installing
 npx @quire-io/quire-cli --help
@@ -36,7 +29,7 @@ npx @quire-io/quire-cli --help
 # https://github.com/quire-io/quire-cli/releases
 ```
 
-## Usage (planned)
+## Usage
 
 ```bash
 quire login                                # one-time OAuth setup
@@ -53,7 +46,7 @@ quire task complete <task-id>
 quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 ```
 
-Full command reference will be added once the first commands land.
+Run `quire --help` (or `quire <command> --help`) for the full command reference.
 
 ## Signing out
 
