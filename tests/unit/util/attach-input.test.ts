@@ -46,7 +46,42 @@ describe("resolveAttachInput", () => {
     writeFileSync(path, "x");
     await expect(
       resolveAttachInput(path, { filename: "sub/dir/file.txt" }),
-    ).rejects.toThrow(/cannot contain "\/"/);
+    ).rejects.toThrow(/disallowed character "\/"/);
+  });
+
+  it("rejects filenames containing backslash (Windows path separator)", async () => {
+    const path = join(dir, "ok.txt");
+    writeFileSync(path, "x");
+    await expect(
+      resolveAttachInput(path, { filename: "sub\\dir\\file.txt" }),
+    ).rejects.toThrow(/disallowed character "\\"/);
+  });
+
+  it("rejects filenames containing a NUL byte", async () => {
+    const path = join(dir, "ok.txt");
+    writeFileSync(path, "x");
+    await expect(
+      resolveAttachInput(path, { filename: "evil\x00.txt" }),
+    ).rejects.toThrow(/disallowed character "\\x00"/);
+  });
+
+  it("rejects filenames containing other ASCII control characters", async () => {
+    const path = join(dir, "ok.txt");
+    writeFileSync(path, "x");
+    await expect(
+      resolveAttachInput(path, { filename: "a\nb.txt" }),
+    ).rejects.toThrow(/disallowed character "\\x0a"/);
+  });
+
+  it("rejects '.' and '..' as filenames", async () => {
+    const path = join(dir, "ok.txt");
+    writeFileSync(path, "x");
+    await expect(resolveAttachInput(path, { filename: "." })).rejects.toThrow(
+      /not allowed/,
+    );
+    await expect(resolveAttachInput(path, { filename: ".." })).rejects.toThrow(
+      /not allowed/,
+    );
   });
 
   it("requires --filename when reading from stdin", async () => {

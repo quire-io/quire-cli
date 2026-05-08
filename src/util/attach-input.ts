@@ -62,15 +62,35 @@ export async function resolveAttachInput(
     ? (opts.filename as string)
     : opts.filename ?? basename(path);
 
-  if (filename.includes("/")) {
-    throw new ValidationError(`Attachment filename cannot contain "/" — got "${filename}".`);
-  }
-  if (filename.length === 0) {
-    throw new ValidationError("Attachment filename cannot be empty.");
-  }
+  validateFilename(filename);
 
   const contentType = opts.contentType ?? guessContentType(filename);
   return { filename, bytes, contentType };
+}
+
+// Reject a filename before we send it to the server. Defense-in-depth on
+// top of whatever the server itself validates: catch the obvious
+// path-traversal / control-char shapes here so failures surface as a
+// clean ValidationError instead of a confusing 4xx round-trip.
+function validateFilename(filename: string): void {
+  if (filename.length === 0) {
+    throw new ValidationError("Attachment filename cannot be empty.");
+  }
+  if (filename === "." || filename === "..") {
+    throw new ValidationError(`Attachment filename "${filename}" is not allowed.`);
+  }
+  // Path separators (POSIX `/`, Windows `\`) and ASCII control characters
+  // (0x00–0x1f, including NUL — null bytes are a string-truncation classic
+  // for downstream C-based consumers).
+  const bad = filename.match(/[\x00-\x1f/\\]/);
+  if (bad) {
+    const ch = bad[0] as string;
+    const code = ch.charCodeAt(0);
+    const display = code < 0x20 ? `\\x${code.toString(16).padStart(2, "0")}` : ch;
+    throw new ValidationError(
+      `Attachment filename contains a disallowed character "${display}" — got "${filename}".`,
+    );
+  }
 }
 
 function guessContentType(filename: string): string {
