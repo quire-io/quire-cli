@@ -7,11 +7,19 @@ import { TASK_GET_FIELDS, TASK_LIST_COLUMNS } from "../output/columns.js";
 import { renderList, renderObject } from "../output/render.js";
 import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
+import { resolveAttachInput } from "../util/attach-input.js";
 import { readBulkItems, readBulkRefs } from "../util/bulk-input.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { parseRecurrence } from "../util/recurrence.js";
 import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveTaskOid } from "../util/task-id.js";
+
+const ATTACHMENT_FIELDS = [
+  { label: "Name", get: (a: { name: string }) => a.name },
+  { label: "URL", get: (a: { url: string }) => a.url },
+  { label: "Length", get: (a: { length: number }) => String(a.length) },
+  { label: "Created at", get: (a: { createdAt?: string }) => a.createdAt },
+];
 
 /** Adds the four shared `--recurrence-*` options to a command. */
 function addRecurrenceOptions(cmd: Command): Command {
@@ -574,6 +582,20 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const t = await client.undoRemoveTask(id);
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
+    });
+
+  task
+    .command("attach <id> <file>")
+    .description("Attach a file to a task. <file> = path on disk, or '-' to read bytes from stdin (then --filename is required).")
+    .option("--filename <name>", "Server-side filename (defaults to the basename of <file>; required when <file> = '-')")
+    .option("--content-type <mime>", "Content-Type header (defaults to extension-based guess; falls back to application/octet-stream)")
+    .action(async (id: string, file: string, cmdOpts: { filename?: string; contentType?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await resolveTaskOid(client, id);
+      const input = await resolveAttachInput(file, cmdOpts);
+      const a = await client.attachTaskFile(oid, input.filename, input.bytes, input.contentType);
+      renderObject(a, root, { fields: ATTACHMENT_FIELDS, toId: (a) => a.url });
     });
 
   // -------- Bulk operations (Phase 5.3 slice A; Apr 27 2026 endpoints) --------

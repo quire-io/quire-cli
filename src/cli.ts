@@ -108,6 +108,7 @@ Tasks (write):
   quire task peekaboo <id> [--reshow-at ISO] Hide a task; optional auto-reshow time
   quire task delete <id>                     Delete a task (prompts unless --yes)
   quire task undo-remove <oid>               Restore a deleted task
+  quire task attach <id> <file>              Attach a file to a task ('-' = stdin; --filename / --content-type optional)
 
 Tasks (bulk):
   quire task bulk-create <project>     --from-file tasks.json   Create up to 300 tasks atomically
@@ -171,6 +172,7 @@ Comments / chats / docs / insights (read):
 Comments (write):
   quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file)
   quire comment update <oid>              Update --text and/or --pin / --unpin
+  quire comment attach <oid> <file>       Attach a file to a comment ('-' = stdin; --filename / --content-type optional)
   quire comment delete <oid>              Delete a comment (prompts unless --yes)
 
 Chats / docs / insights (write):

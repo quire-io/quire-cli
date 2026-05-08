@@ -4,6 +4,7 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { resolveAttachInput } from "../util/attach-input.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
 import { resolveTextInput } from "../util/text-input.js";
@@ -15,6 +16,13 @@ const COMMENT_FIELDS = [
   { label: "Pinned at", get: (c: { pinAt?: string }) => c.pinAt },
   { label: "Text", get: (c: { descriptionText?: string }) => c.descriptionText },
   { label: "URL", get: (c: { url?: string }) => c.url },
+];
+
+const ATTACHMENT_FIELDS = [
+  { label: "Name", get: (a: { name: string }) => a.name },
+  { label: "URL", get: (a: { url: string }) => a.url },
+  { label: "Length", get: (a: { length: number }) => String(a.length) },
+  { label: "Created at", get: (a: { createdAt?: string }) => a.createdAt },
 ];
 
 export function registerCommentCommand(program: Command): void {
@@ -83,6 +91,19 @@ export function registerCommentCommand(program: Command): void {
 
       const c = await client.updateComment(oid, body);
       renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
+    });
+
+  comment
+    .command("attach <oid> <file>")
+    .description("Attach a file to a comment. <file> = path on disk, or '-' to read bytes from stdin (then --filename is required).")
+    .option("--filename <name>", "Server-side filename (defaults to the basename of <file>; required when <file> = '-')")
+    .option("--content-type <mime>", "Content-Type header (defaults to extension-based guess; falls back to application/octet-stream)")
+    .action(async (oid: string, file: string, cmdOpts: { filename?: string; contentType?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const input = await resolveAttachInput(file, cmdOpts);
+      const a = await client.attachCommentFile(oid, input.filename, input.bytes, input.contentType);
+      renderObject(a, root, { fields: ATTACHMENT_FIELDS, toId: (a) => a.url });
     });
 
   comment
