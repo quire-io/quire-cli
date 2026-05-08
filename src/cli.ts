@@ -145,10 +145,12 @@ Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
   quire tag update <oid>          Update tag --name / --color
   quire tag delete <oid>          Delete a tag (prompts unless --yes)
-  quire sublist create <project>  Create a sublist (--name / --description)
-  quire sublist update <oid>      Update sublist (--name / --description / --start / --due / --archive / --unarchive)
-  quire sublist delete <oid>      Delete a sublist (prompts unless --yes)
-  quire sublist undo-remove <oid> Restore a deleted sublist
+  quire sublist create <project>      Create a sublist (--name / --description)
+  quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive)
+  quire sublist add-task <oid> <task> Add a task to a sublist
+  quire sublist remove-task <oid> <task>  Remove a task from a sublist
+  quire sublist delete <oid>          Delete a sublist (prompts unless --yes)
+  quire sublist undo-remove <oid>     Restore a deleted sublist
   quire status create <project>   Create a status (--name / --value / --color)
   quire status update <project> <value>  Update a status (--name / --color / --new-value)
   quire status delete <project> <value>  Delete a status (prompts unless --yes)

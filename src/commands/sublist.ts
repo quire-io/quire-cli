@@ -5,6 +5,7 @@ import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
+import { resolveTaskOid } from "../util/task-id.js";
 
 const SUBLIST_FIELDS = [
   { label: "Name", get: (s: { nameText?: string; name: string }) => s.nameText ?? s.name },
@@ -86,6 +87,28 @@ export function registerSublistCommand(program: Command): void {
       }
 
       const s = await client.updateSublist(oid, body);
+      renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
+    });
+
+  sublist
+    .command("add-task <sublist-oid> <task>")
+    .description("Add a task to a sublist. <task> = OID, slug/#N, or URL.")
+    .action(async (sublistOid: string, taskInput: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const taskOid = await resolveTaskOid(client, taskInput);
+      const s = await client.updateSublistMembership(sublistOid, [{ task: taskOid }]);
+      renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
+    });
+
+  sublist
+    .command("remove-task <sublist-oid> <task>")
+    .description("Remove a task from a sublist. <task> = OID, slug/#N, or URL.")
+    .action(async (sublistOid: string, taskInput: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const taskOid = await resolveTaskOid(client, taskInput);
+      const s = await client.updateSublistMembership(sublistOid, [{ task: taskOid, exclude: true }]);
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 
