@@ -71,10 +71,29 @@ export async function startLoopbackServer(
     rejectResult = reject;
   });
 
+  // Set after server.listen() resolves; read by the handler on every request.
+  // Used to validate the incoming `Host:` header — see the check below.
+  let boundPort: number | undefined;
+
   const handler = (req: IncomingMessage, res: ServerResponse): void => {
     if (!req.url) {
       res.writeHead(400, { "Content-Type": "text/plain" });
       res.end("Bad request");
+      return;
+    }
+    // Reject any request whose Host header isn't the loopback we bound to.
+    // The legitimate browser redirect arrives as `Host: 127.0.0.1:<port>`;
+    // a remote site abusing DNS rebinding (attacker.com → 127.0.0.1) sends
+    // `Host: attacker.com:<port>`. Without this check, that remote request
+    // is enough to resolve the single-shot callback promise, killing the
+    // legitimate in-flight login.
+    const host = req.headers.host;
+    if (
+      boundPort === undefined ||
+      (host !== `127.0.0.1:${boundPort}` && host !== `localhost:${boundPort}`)
+    ) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Bad host");
       return;
     }
     const url = new URL(req.url, "http://127.0.0.1");
@@ -124,6 +143,7 @@ export async function startLoopbackServer(
   });
 
   const address = server.address() as AddressInfo;
+  boundPort = address.port;
   const redirectUri = `http://127.0.0.1:${address.port}/callback`;
 
   let closed = false;

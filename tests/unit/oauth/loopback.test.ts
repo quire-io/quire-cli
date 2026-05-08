@@ -1,6 +1,41 @@
+import { request as httpRequest } from "node:http";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { startLoopbackServer, type LoopbackServer } from "../../../src/oauth/loopback.js";
+
+/**
+ * Send a raw HTTP/1.1 request with a custom `Host` header. `fetch` (undici)
+ * treats Host as a forbidden header and silently overrides it, so we drop
+ * down to `node:http` for tests that need to forge it.
+ */
+async function rawCallback(
+  server: LoopbackServer,
+  query: string,
+  hostHeader: string,
+): Promise<{ status: number; body: string }> {
+  const target = new URL(`${server.redirectUri}${query}`);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        host: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: "GET",
+        headers: { Host: hostHeader },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 let active: LoopbackServer | undefined;
 
@@ -55,6 +90,34 @@ describe("loopback callback failure page", () => {
     const { status, body } = await fetchCallback(active, "?code=abc&state=xyz");
     expect(status).toBe(200);
     expect(body).toContain("You're signed in");
+
+    const result = await callbackPromise;
+    expect(result).toEqual({ code: "abc", state: "xyz" });
+  });
+
+  it("rejects requests whose Host header isn't loopback (DNS-rebinding guard)", async () => {
+    active = await startLoopbackServer();
+    // Don't await — the callback must NOT resolve from a forged-Host request.
+    const callbackPromise = active.waitForCallback({ timeoutMs: 1000 }).catch((err: Error) => err);
+
+    const { status, body } = await rawCallback(active, "?code=abc&state=xyz", "attacker.example.com");
+    expect(status).toBe(400);
+    expect(body).toBe("Bad host");
+
+    // The single-shot promise must still be pending — i.e. it eventually
+    // times out, not resolves with the attacker payload.
+    const settled = await callbackPromise;
+    expect(settled).toBeInstanceOf(Error);
+    expect((settled as Error).message).toContain("timed out");
+  });
+
+  it("accepts the localhost alias for Host (some browsers send it)", async () => {
+    active = await startLoopbackServer();
+    const callbackPromise = active.waitForCallback({ timeoutMs: 5000 });
+
+    const port = new URL(active.redirectUri).port;
+    const { status } = await rawCallback(active, "?code=abc&state=xyz", `localhost:${port}`);
+    expect(status).toBe(200);
 
     const result = await callbackPromise;
     expect(result).toEqual({ code: "abc", state: "xyz" });
