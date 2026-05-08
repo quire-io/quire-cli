@@ -7,6 +7,19 @@ import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
 import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
+import { resolveTextInput } from "../util/text-input.js";
+
+const PROJECT_GET_FIELDS = [
+  { label: "Name", get: (p: { nameText?: string; name: string }) => p.nameText ?? p.name },
+  { label: "ID", get: (p: { id: string }) => p.id },
+  { label: "OID", get: (p: { oid: string }) => p.oid },
+  { label: "Description", get: (p: { descriptionText?: string }) => p.descriptionText },
+  { label: "URL", get: (p: { url?: string }) => p.url },
+  { label: "Start", get: (p: { start?: string }) => p.start },
+  { label: "Due", get: (p: { due?: string }) => p.due },
+  { label: "Archived at", get: (p: { archivedAt?: string }) => p.archivedAt },
+  { label: "Public at", get: (p: { publicAt?: string }) => p.publicAt },
+];
 
 const APPROVAL_CATEGORY_FIELDS = [
   { label: "ID", get: (c: { id: string }) => c.id },
@@ -56,20 +69,60 @@ export function registerProjectCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await client.resolveProjectOid(id);
       const p = await client.getProject(oid);
-      renderObject(p, root, {
-        fields: [
-          { label: "Name", get: (p) => p.nameText ?? p.name },
-          { label: "ID", get: (p) => p.id },
-          { label: "OID", get: (p) => p.oid },
-          { label: "Description", get: (p) => p.descriptionText },
-          { label: "URL", get: (p) => p.url },
-          { label: "Start", get: (p) => p.start },
-          { label: "Due", get: (p) => p.due },
-          { label: "Archived at", get: (p) => p.archivedAt },
-          { label: "Public at", get: (p) => p.publicAt },
-        ],
-        toId: (p) => p.oid,
-      });
+      renderObject(p, root, { fields: PROJECT_GET_FIELDS, toId: (p) => p.oid });
+    });
+
+  project
+    .command("update <id>")
+    .description("Update project metadata. Pass 'null' to --start / --due to clear.")
+    .option("--name <name>", "New name")
+    .option("--description <text>", "New description ('-' = stdin, '@file' = file)")
+    .option("--start <date>", "Start date or 'null' to clear")
+    .option("--due <date>", "Due date or 'null' to clear")
+    .option("--archive", "Archive the project")
+    .option("--unarchive", "Unarchive the project")
+    .option("--public", "Make the project public to the organization")
+    .option("--private", "Make the project private")
+    .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
+    .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
+    .action(async (id: string, cmdOpts: {
+      name?: string; description?: string;
+      start?: string; due?: string;
+      archive?: boolean; unarchive?: boolean;
+      public?: boolean; private?: boolean;
+      addFollower?: string[]; removeFollower?: string[];
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      if (cmdOpts.archive === true && cmdOpts.unarchive === true) {
+        throw new ValidationError("Cannot combine --archive and --unarchive.");
+      }
+      if (cmdOpts.public === true && cmdOpts.private === true) {
+        throw new ValidationError("Cannot combine --public and --private.");
+      }
+      const oid = await client.resolveProjectOid(id);
+      const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
+      const body: {
+        name?: string; description?: string;
+        start?: string | null; due?: string | null;
+        archived?: boolean; public?: boolean;
+        addFollowers?: string[]; removeFollowers?: string[];
+      } = {};
+      if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
+      if (description !== undefined) body.description = description;
+      if (cmdOpts.start !== undefined) body.start = cmdOpts.start === "null" ? null : cmdOpts.start;
+      if (cmdOpts.due !== undefined) body.due = cmdOpts.due === "null" ? null : cmdOpts.due;
+      if (cmdOpts.archive === true) body.archived = true;
+      if (cmdOpts.unarchive === true) body.archived = false;
+      if (cmdOpts.public === true) body.public = true;
+      if (cmdOpts.private === true) body.public = false;
+      if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
+      if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
+      if (Object.keys(body).length === 0) {
+        throw new ValidationError("`project update` requires at least one of --name / --description / --start / --due / --archive / --unarchive / --public / --private / --add-follower / --remove-follower.");
+      }
+      const p = await client.updateProject(oid, body);
+      renderObject(p, root, { fields: PROJECT_GET_FIELDS, toId: (p) => p.oid });
     });
 
   project

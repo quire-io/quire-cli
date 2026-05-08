@@ -1,8 +1,24 @@
 import { Command } from "commander";
 
+import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { resolveTextInput } from "../util/text-input.js";
+
+const ORG_GET_FIELDS = [
+  { label: "Name", get: (o: { nameText?: string; name: string }) => o.nameText ?? o.name },
+  { label: "ID", get: (o: { id: string }) => o.id },
+  { label: "OID", get: (o: { oid: string }) => o.oid },
+  { label: "Email", get: (o: { email?: string }) => o.email },
+  { label: "Website", get: (o: { website?: string }) => o.website },
+  { label: "Description", get: (o: { descriptionText?: string }) => o.descriptionText },
+  { label: "URL", get: (o: { url?: string }) => o.url },
+  { label: "Plan", get: (o: { subscription?: { plan?: string } }) => o.subscription?.plan },
+  { label: "Created at", get: (o: { createdAt?: string }) => o.createdAt },
+];
+
+const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
 
 export function registerOrgCommand(program: Command): void {
   const org = program.command("org").description("Quire organizations.");
@@ -61,19 +77,36 @@ export function registerOrgCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await client.resolveOrgOid(id);
       const o = await client.getOrganization(oid);
-      renderObject(o, root, {
-        fields: [
-          { label: "Name", get: (o) => o.nameText ?? o.name },
-          { label: "ID", get: (o) => o.id },
-          { label: "OID", get: (o) => o.oid },
-          { label: "Email", get: (o) => o.email },
-          { label: "Website", get: (o) => o.website },
-          { label: "Description", get: (o) => o.descriptionText },
-          { label: "URL", get: (o) => o.url },
-          { label: "Plan", get: (o) => o.subscription?.plan },
-          { label: "Created at", get: (o) => o.createdAt },
-        ],
-        toId: (o) => o.oid,
-      });
+      renderObject(o, root, { fields: ORG_GET_FIELDS, toId: (o) => o.oid });
+    });
+
+  org
+    .command("update <id>")
+    .description("Update organization metadata.")
+    .option("--name <name>", "New name")
+    .option("--description <text>", "New description ('-' = stdin, '@file' = file)")
+    .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
+    .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
+    .action(async (id: string, cmdOpts: {
+      name?: string; description?: string;
+      addFollower?: string[]; removeFollower?: string[];
+    }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await client.resolveOrgOid(id);
+      const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
+      const body: {
+        name?: string; description?: string;
+        addFollowers?: string[]; removeFollowers?: string[];
+      } = {};
+      if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
+      if (description !== undefined) body.description = description;
+      if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
+      if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
+      if (Object.keys(body).length === 0) {
+        throw new ValidationError("`org update` requires at least one of --name / --description / --add-follower / --remove-follower.");
+      }
+      const o = await client.updateOrganization(oid, body);
+      renderObject(o, root, { fields: ORG_GET_FIELDS, toId: (o) => o.oid });
     });
 }

@@ -77,9 +77,11 @@ Auth:
 Orgs / projects:
   quire org list               List your organizations
   quire org get <id>           Show one organization
+  quire org update <id>        Update name / description / followers
   quire org limit <id>         Show API rate-limit usage for an organization
   quire project list           List projects you can see (or --org <id> to scope)
   quire project get <id>       Show one project
+  quire project update <id>    Update name / description / dates / archive / public / followers
   quire project members <id>   List a project's members
 
 Tasks (read):
