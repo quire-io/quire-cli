@@ -9,6 +9,7 @@ import { registerInsightCommand } from "./commands/insight.js";
 import { registerLoginCommand } from "./commands/login.js";
 import { registerLogoutCommand } from "./commands/logout.js";
 import { registerMineCommand } from "./commands/mine.js";
+import { registerNotifyCommand } from "./commands/notify.js";
 import { registerOrgCommand } from "./commands/org.js";
 import { registerPartnerCommand } from "./commands/partner.js";
 import { registerProjectCommand } from "./commands/project.js";
@@ -66,6 +67,7 @@ registerDocCommand(program);
 registerInsightCommand(program);
 registerResolveCommand(program);
 registerColorsCommand(program);
+registerNotifyCommand(program);
 registerUndoCommand(program);
 
 program.addHelpText(
@@ -190,6 +192,9 @@ Generic undo:
 
 URL resolver:
   quire resolve <url>          Paste any Quire URL, get the typed resource back
+
+Notifications:
+  quire notify --message ...   Send an in-app notification to yourself ('-' / '@file' for stdin / file)
 
 Reference:
   quire colors                 List Quire's 48-slot palette (code, hex, name)
