@@ -1,5 +1,6 @@
 import { Command } from "commander";
-import type { QuireApproval, QuireTask, QuireTaskSearchParams, QuireTimelog } from "@quire-io/api-client";
+import type { QuireApproval, QuireTask, QuireTaskSearchParams, QuireTimelog, FormulaValue } from "@quire-io/api-client";
+import { evaluateTaskFormulaFields, loadProjectTasksForFormula } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
@@ -863,4 +864,79 @@ export function registerTaskCommand(program: Command): void {
       });
       renderList(logs, root, { columns: TIMELOG_COLUMNS, toId: (l) => `${l.start}/${l.end}` });
     });
+
+  // -------- Formula evaluation --------
+
+  task
+    .command("formula <project>")
+    .description("Evaluate formula custom fields for every task in a project.")
+    .action(async (project: string) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const oid = await client.resolveProjectOid(project);
+
+      const [proj, { tasks, via }, me] = await Promise.all([
+        client.getProject(oid),
+        loadProjectTasksForFormula(client, oid),
+        client.getMe(),
+      ]);
+
+      if (via === "list") {
+        process.stderr.write(
+          "Note: project export unavailable (paid plan required); using flat task list — subtask hierarchy absent in formula context.\n",
+        );
+      }
+
+      const fields = proj.fields ?? {};
+      const formulaFieldNames = Object.entries(fields)
+        .filter(([, def]) => def.type === "formula")
+        .map(([name]) => name);
+
+      if (formulaFieldNames.length === 0) {
+        process.stderr.write("No formula fields defined on this project.\n");
+        return;
+      }
+
+      const currentUser = { oid: me.oid, id: me.id, name: me.name };
+      const rows = tasks.map((t) => ({
+        task: t,
+        values: evaluateTaskFormulaFields(t, tasks, fields, currentUser),
+      }));
+
+      if (root.json === true) {
+        process.stdout.write(
+          JSON.stringify(
+            rows.map(({ task: t, values }) => ({
+              oid: t.oid,
+              id: t.id,
+              name: t.nameText ?? t.name,
+              formulaFields: values,
+            })),
+          ) + "\n",
+        );
+        return;
+      }
+
+      if (root.quiet === true) {
+        for (const { task: t } of rows) process.stdout.write(`${t.oid}\n`);
+        return;
+      }
+
+      printTable(rows, [
+        { header: "ID", get: (r) => `#${r.task.id}` },
+        { header: "NAME", get: (r) => (r.task.nameText ?? r.task.name ?? "").slice(0, 40) },
+        ...formulaFieldNames.map((name) => ({
+          header: name.toUpperCase(),
+          get: (r: { task: QuireTask; values: Record<string, FormulaValue> }) =>
+            fmtFormulaValue(r.values[name] ?? null),
+        })),
+      ]);
+    });
+}
+
+function fmtFormulaValue(v: FormulaValue): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (Array.isArray(v)) return v.map(fmtFormulaValue).join(", ");
+  return String(v);
 }
