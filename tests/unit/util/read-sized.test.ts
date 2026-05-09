@@ -38,7 +38,7 @@ describe("readBytesWithLimit (file path)", () => {
   it("throws ValidationError when the file exceeds the cap", async () => {
     const path = tmpFile("big.bin", Buffer.alloc(2048, 0xff));
     await expect(readBytesWithLimit(path, 1024, "Test input")).rejects.toThrowError(
-      /Test input "[^"]+\/big\.bin" is .* \(cap: .*\)/,
+      /Test input "[^"]+[/\\]big\.bin" is .* \(cap: .*\)/,
     );
   });
 
