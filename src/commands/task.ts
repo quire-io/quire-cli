@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { QuireApproval, QuireTask, QuireTaskSearchParams, QuireTimelog, FormulaValue } from "@quire-io/api-client";
-import { evaluateTaskFormulaFields, loadProjectTasksForFormula } from "@quire-io/api-client";
+import { evaluateTaskFormulaFields, loadProjectTasksForFormula, QureDuration } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
@@ -937,6 +937,14 @@ export function registerTaskCommand(program: Command): void {
 function fmtFormulaValue(v: FormulaValue): string {
   if (v === null || v === undefined) return "";
   if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof QureDuration) {
+    const totalSecs = Math.abs(v.seconds);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    const sign = v.seconds < 0 ? "-" : "";
+    return `${sign}${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
   if (Array.isArray(v)) return v.map(fmtFormulaValue).join(", ");
   return String(v);
 }

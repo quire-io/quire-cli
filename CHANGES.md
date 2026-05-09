@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-05-09
+
+- `quire task formula <project>` — evaluate all formula-type custom fields for every task in a project. Prints a table of task ID, name, and one column per formula field; use `--json` for structured output. Requires `@quire-io/api-client` 0.1.5 and uses the tiered loader (export JSON on paid plans, flat list fallback).
+
 ## 0.1.1 — 2026-05-08
 
 Switch OAuth to the production Quire CLI app, plus a round of input-handling and OAuth-flow hardening.

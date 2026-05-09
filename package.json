@@ -1,6 +1,6 @@
 {
   "name": "@quire-io/quire-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Command-line interface for the Quire API.",
   "type": "module",
   "publishConfig": {
@@ -48,7 +48,7 @@
     "url": "https://github.com/quire-io/quire-cli/issues"
   },
   "dependencies": {
-    "@quire-io/api-client": "^0.1.4",
+    "@quire-io/api-client": "^0.1.5",
     "commander": "^12.1.0"
   },
   "devDependencies": {
