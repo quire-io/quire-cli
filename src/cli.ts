@@ -110,7 +110,7 @@ Tasks (write):
   quire task move <id> --to <id|root>        Re-parent within the same project
   quire task transfer <id> --to <project>    Cross-project transfer (--keep-tags / --keep-status / --invite)
   quire task dates <id> --start ... --due ... Set / clear dates (pass 'null' to clear)
-  quire task peekaboo <id> [--reshow-at ISO] Hide a task; optional auto-reshow time
+  quire task peekaboo <id> [--reshow-at ISO | --show] Hide or un-hide a task
   quire task delete <id>                     Delete a task (prompts unless --yes)
   quire task undo-remove <oid>               Restore a deleted task
   quire task attach <id> <file>              Attach a file to a task ('-' = stdin; --filename / --content-type optional)

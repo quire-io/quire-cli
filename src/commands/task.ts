@@ -532,18 +532,26 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("peekaboo <id>")
-    .description("Hide (peekaboo) a task. --reshow-at <ISO 8601> sets a re-show time.")
+    .description("Hide (peekaboo) a task. --reshow-at <ISO 8601> sets a re-show time; --show un-hides.")
     .option("--reshow-at <iso8601>", "Reshow at this ISO 8601 timestamp (omit to hide indefinitely)")
-    .action(async (id: string, cmdOpts: { reshowAt?: string }) => {
+    .option("--show", "Un-hide the task instead of hiding it")
+    .action(async (id: string, cmdOpts: { reshowAt?: string; show?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
 
-      let peekaboo: boolean | number = true;
+      if (cmdOpts.show && cmdOpts.reshowAt !== undefined) {
+        throw new ValidationError("--show and --reshow-at are mutually exclusive.");
+      }
+
+      let peekaboo: boolean | number = cmdOpts.show ? false : true;
       if (cmdOpts.reshowAt !== undefined) {
         const ms = Date.parse(cmdOpts.reshowAt);
         if (Number.isNaN(ms)) {
           throw new ValidationError(`--reshow-at must be ISO 8601 (e.g. 2026-05-08T12:00:00Z); got "${cmdOpts.reshowAt}"`);
+        }
+        if (ms <= Date.now()) {
+          throw new ValidationError(`--reshow-at must be in the future; got "${cmdOpts.reshowAt}"`);
         }
         peekaboo = ms;
       }
