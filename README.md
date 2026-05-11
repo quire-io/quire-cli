@@ -51,6 +51,10 @@ quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 
 Run `quire --help` (or `quire <command> --help`) for the full command reference.
 
+## Using with AI
+
+See [AI_GUIDE.md](AI_GUIDE.md) for recipes pairing the CLI with an LLM (Claude, ChatGPT, etc.) — project digests, weekly standups, bulk task creation from meeting notes, and more.
+
 ## Updating
 
 How you update depends on how you installed:
