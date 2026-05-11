@@ -30,3 +30,10 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  scripts:
+    name: scripts (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s tests/scripts -v
