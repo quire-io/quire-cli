@@ -23,7 +23,7 @@ instead of failing.
 ### `QUIRE_TEST_CLIENT_SECRET` — CI auth model
 
 Quire's PKCE flow [does not issue refresh tokens][pkce]. The CI suite
-therefore uses the OAuth app in **confidential mode** — passing the
+therefore uses an OAuth app in **confidential mode** — passing the
 app's `client_secret` to `/oauth/token` so a 180-day refresh token is
 issued and the access token can be refreshed automatically across
 weekly cron runs.
@@ -34,11 +34,21 @@ when the access token expires.
 
 [pkce]: https://quire.io/dev/api/#pkce-support
 
+### `QUIRE_TEST_CLIENT_ID` — using a separate test OAuth app
+
+By default the suite reuses the published CLI app's `client_id`. When
+CI uses a dedicated test OAuth app instead (recommended — keeps test
+rotations off the public client), set `QUIRE_TEST_CLIENT_ID` to that
+app's id. The refresh grant must be sent to the same `client_id` that
+minted the token, or `/oauth/token` returns `invalid_client` and the
+client surfaces it as a revoked authorization.
+
 ### Reading the refresh token out of the OAuth app
 
-Mint a refresh token via the confidential-client flow against the dev
-OAuth app, then stash both the refresh token and the `client_secret` as
-GH secrets per the names above.
+Mint a refresh token via the confidential-client flow against the
+test OAuth app, then stash the refresh token, `client_secret`, and
+(if not the public CLI app) the `client_id` as GH secrets per the
+names above.
 
 If Quire rotates refresh tokens on each refresh, `onTokenRefresh` logs a
 warning to CI output with the new token's prefix — update the
@@ -82,8 +92,12 @@ manual dispatch. Configure on the repo:
   account. Lasts 180 days; the workflow auto-refreshes the access token
   on every run. Rotate before the 180-day mark or whenever you see the
   `refresh token rotated` warning in the logs.
-- **Secret** `QUIRE_TEST_CLIENT_SECRET` — dev OAuth app's `client_secret`.
+- **Secret** `QUIRE_TEST_CLIENT_SECRET` — test OAuth app's `client_secret`.
   CI uses the app in confidential mode to obtain a refresh token;
   PKCE-only flow does not issue one ([docs][pkce]).
+- **Secret** `QUIRE_TEST_CLIENT_ID` (optional) — test OAuth app's
+  `client_id`. Set this when CI uses a dedicated test OAuth app rather
+  than the published CLI client; must match the app that minted the
+  refresh token.
 - **Variable** `QUIRE_TEST_PROJECT_OID` (optional) — project OID for the
   write canary. If unset, only the read-only sweep runs.

@@ -14,11 +14,15 @@ import { QUIRE_CLI_CLIENT_ID } from "../../src/oauth/config.js";
  *      once, the access token rotates automatically.
  *      *** CI auth model: Quire's PKCE flow does not issue refresh
  *      tokens (https://quire.io/dev/api/#pkce-support). The CI suite
- *      bypasses PKCE and uses the OAuth app in confidential mode —
- *      `QUIRE_TEST_CLIENT_SECRET` carries the app's client_secret so
- *      `/oauth/token` (refresh grant) accepts the request. This is a
- *      CI-only setup; the distributed CLI uses PKCE and MUST NOT ship
- *      a client_secret. ***
+ *      bypasses PKCE and uses an OAuth app in confidential mode —
+ *      `QUIRE_TEST_CLIENT_SECRET` carries that app's client_secret so
+ *      `/oauth/token` (refresh grant) accepts the request. Set
+ *      `QUIRE_TEST_CLIENT_ID` when the test OAuth app is *not* the
+ *      published CLI app — its client_id must match the one that
+ *      issued the refresh token, or `/oauth/token` returns
+ *      `invalid_client` (which the client surfaces as revoked). This
+ *      is a CI-only setup; the distributed CLI uses PKCE and MUST NOT
+ *      ship a client_secret. ***
  *   2. `QUIRE_TEST_TOKEN` — raw access token (1 hour TTL). No refresh.
  *      Best for one-off local runs and ad-hoc debugging.
  *   3. `QUIRE_TEST_PROFILE` (default `testdev`) — reuse a local CLI
@@ -47,6 +51,12 @@ export function resolveLiveClient(): LiveClientResult {
   // succeeds in CI (Quire's PKCE flow doesn't issue refresh tokens).
   // Never set this for the distributed CLI — see docstring above.
   const clientSecret = process.env.QUIRE_TEST_CLIENT_SECRET?.trim();
+  // CI-only: client_id of the OAuth app that issued the refresh token.
+  // Defaults to the published CLI client. Override when CI uses a
+  // separate test-only OAuth app — the refresh grant must be sent to
+  // the same client_id that minted the token, otherwise `/oauth/token`
+  // returns `invalid_client`.
+  const clientId = process.env.QUIRE_TEST_CLIENT_ID?.trim() || QUIRE_CLI_CLIENT_ID;
 
   if (refreshToken) {
     // Force refresh on first request: even if a fresh access token was
@@ -63,7 +73,7 @@ export function resolveLiveClient(): LiveClientResult {
         refreshTokens: (rt) =>
           apiRefreshTokens({
             apiServer,
-            clientId: QUIRE_CLI_CLIENT_ID,
+            clientId,
             clientSecret,
             refreshToken: rt,
           }),

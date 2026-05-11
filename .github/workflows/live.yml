@@ -6,8 +6,11 @@ name: Live API tests
 #     access token on first call.
 #   - QUIRE_TEST_CLIENT_SECRET — CI-only. Quire's PKCE flow doesn't
 #     issue refresh tokens (https://quire.io/dev/api/#pkce-support), so
-#     CI uses the OAuth app in confidential mode (client_secret + 180-
+#     CI uses an OAuth app in confidential mode (client_secret + 180-
 #     day refresh token) instead. MUST NOT ship in the distributed CLI.
+#   - QUIRE_TEST_CLIENT_ID — optional. Set when the test OAuth app is
+#     a dedicated test app rather than the published CLI client. Must
+#     match the app that minted the refresh token.
 # The create+delete canary additionally needs `QUIRE_TEST_PROJECT_OID` —
 # set it as a repo variable (not a secret; OIDs aren't sensitive but treat
 # as you'd treat any project handle). If the variable is unset the canary
@@ -43,5 +46,6 @@ jobs:
         env:
           QUIRE_TEST_REFRESH_TOKEN: ${{ secrets.QUIRE_TEST_REFRESH_TOKEN }}
           QUIRE_TEST_CLIENT_SECRET: ${{ secrets.QUIRE_TEST_CLIENT_SECRET }}
+          QUIRE_TEST_CLIENT_ID: ${{ secrets.QUIRE_TEST_CLIENT_ID }}
           QUIRE_TEST_PROJECT_OID: ${{ vars.QUIRE_TEST_PROJECT_OID }}
         run: npm run test:live
