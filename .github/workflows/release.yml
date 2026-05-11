@@ -225,18 +225,83 @@ jobs:
             dist-bin/SHA256SUMS
 
   # Open a bump PR against the quire-io/homebrew-quire tap so `brew upgrade
-  # quire` picks up the new release. Default behavior of the action: PR
-  # only — merge it manually (or enable auto-merge on the tap repo) so the
-  # version + four sha256 lines actually land on the tap's main branch.
+  # quire` picks up the new release. The PR is opened on a per-version
+  # branch; merge it manually (or enable auto-merge on the tap repo) so
+  # the version + four URL/sha256 pairs actually land on main.
+  #
+  # We rewrite the formula ourselves via scripts/update-homebrew-formula.py
+  # rather than `brew bump-formula-pr` (used by
+  # dawidd6/action-homebrew-bump-formula) because that tool is single-URL
+  # by design — it only bumps the URL matching the host platform of the
+  # runner. v0.1.2's auto-bump shipped only the linux-x64 entry as a
+  # result, leaving mac/linux-arm64 users on v0.1.1 binaries.
+  #
+  # The secret HOMEBREW_TAP_PUSH_TOKEN must be a classic PAT with `repo`
+  # scope (fine-grained PATs are not enough — `git push` to the tap and
+  # `gh pr create` both need full repo access on quire-io/homebrew-quire).
   bump-tap:
     name: Bump Homebrew tap
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Bump quire formula in homebrew-quire
-        uses: dawidd6/action-homebrew-bump-formula@v3
+      - name: Checkout quire-cli (for the bump script)
+        uses: actions/checkout@v4
         with:
-          token:    ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
-          tap:      quire-io/homebrew-quire
-          formula:  quire
-          tag:      ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: quire-io/homebrew-quire
+          token: ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
+          path: tap
+
+      - name: Download SHA256SUMS from this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern SHA256SUMS
+
+      - name: Rewrite formula
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          python3 scripts/update-homebrew-formula.py \
+            tap/Formula/quire.rb "$VERSION" SHA256SUMS
+          echo "--- diff ---"
+          git -C tap diff Formula/quire.rb
+
+      - name: Commit, push, open PR
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          VERSION="${TAG#v}"
+          BRANCH="bump-quire-$VERSION"
+          git checkout -b "$BRANCH"
+          git add Formula/quire.rb
+          git commit -m "quire $VERSION"
+          # --force-with-lease makes workflow re-runs (e.g. retrying after a
+          # transient failure) idempotent: if the branch already exists from
+          # a prior run we own, overwrite it; if someone else has pushed in
+          # the meantime, fail loudly.
+          git push origin "$BRANCH" --force-with-lease --set-upstream
+
+          if PR_NUM=$(gh pr view "$BRANCH" --repo quire-io/homebrew-quire --json number --jq .number 2>/dev/null); then
+            echo "PR #$PR_NUM already exists for $BRANCH — updated via force-push."
+          else
+            gh pr create \
+              --repo quire-io/homebrew-quire \
+              --base main \
+              --head "$BRANCH" \
+              --title "quire $VERSION" \
+              --body "Automated bump for $TAG. All four platform binaries updated from SHA256SUMS."
+          fi
