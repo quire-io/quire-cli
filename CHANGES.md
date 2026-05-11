@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — 2026-05-11
+
+- `quire mine` switched to the new `QuireClient.getMyTasks(scope, filter)` helper from `@quire-io/api-client` 0.1.7. Behaviour changes:
+  - `--all-orgs` now deduplicates tasks by OID. Previously a task that surfaced in two organizations (e.g. a guest in a shared project) appeared twice.
+  - `--all-orgs` now includes the user's private Inbox by default. Pass `--skip-inbox` to restore the old "orgs only" fan-out.
+  - New `--inbox` flag scopes to the private Inbox alone. Mutually exclusive with `--project` / `--org` / `--all-orgs`.
+- Bumps `@quire-io/api-client` to `^0.1.7` (0.1.6 type re-exports were broken and never reached npm).
+
 ## 0.1.2 — 2026-05-09
 
 - `quire task formula <project>` — evaluate all formula-type custom fields for every task in a project. Prints a table of task ID, name, and one column per formula field; use `--json` for structured output. Requires `@quire-io/api-client` 0.1.5 and uses the tiered loader (export JSON on paid plans, flat list fallback).

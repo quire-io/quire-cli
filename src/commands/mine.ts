@@ -1,8 +1,7 @@
 import { Command } from "commander";
-import type { QuireTask, QuireTaskSearchParams } from "@quire-io/api-client";
+import type { QuireMyTasksFilter, QuireMyTasksScope } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
-import { createLogger } from "../log.js";
 import type { GlobalOpts } from "../options.js";
 import { TASK_LIST_COLUMNS } from "../output/columns.js";
 import { renderList } from "../output/render.js";
@@ -10,8 +9,10 @@ import { createQuireClient } from "../quire-client.js";
 
 interface MineOpts {
   project?: string;
+  inbox?: boolean;
   org?: string;
   allOrgs?: boolean;
+  skipInbox?: boolean;
   limit?: string;
 }
 
@@ -28,45 +29,60 @@ function parseLimit(input: string | undefined): number | "no" | undefined {
 export function registerMineCommand(program: Command): void {
   program
     .command("mine")
-    .description("List tasks assigned to me. Scope with --project, --org, or --all-orgs.")
+    .description(
+      "List tasks assigned to me. Scope with --project, --inbox, --org, or --all-orgs.",
+    )
     .option("--project <id>", "Restrict to one project.")
+    .option("--inbox", "Restrict to my private Inbox.")
     .option("--org <id>", "Restrict to one organization.")
-    .option("--all-orgs", "Fan out across every organization you belong to.")
-    .option("--limit <n>", "Page size.")
+    .option(
+      "--all-orgs",
+      "Fan out across every organization you belong to (includes Inbox; pass --skip-inbox to exclude).",
+    )
+    .option("--skip-inbox", "With --all-orgs, exclude the private Inbox from the fan-out.")
+    .option("--limit <n>", "Page size (positive integer or 'no' for unlimited).")
     .action(async (cmdOpts: MineOpts) => {
       const root = program.opts<GlobalOpts>();
-      const log = createLogger({ verbose: root.verbose === true, color: root.colorMode });
-      const client = createQuireClient({ profile: root.profile });
-      const params: QuireTaskSearchParams = {
-        mine: true,
-        ...(cmdOpts.limit ? { limit: parseLimit(cmdOpts.limit) } : {}),
-      };
 
-      let tasks: QuireTask[];
-      if (cmdOpts.project) {
-        const oid = await client.resolveProjectOid(cmdOpts.project);
-        tasks = await client.searchTasks(oid, params);
-      } else if (cmdOpts.org) {
-        const oid = await client.resolveOrgOid(cmdOpts.org);
-        tasks = await client.searchTasksInOrganization(oid, params);
-      } else if (cmdOpts.allOrgs === true) {
-        const orgs = await client.listOrganizations();
-        if (orgs.length === 0) {
-          tasks = [];
-        } else {
-          if (orgs.length > 1) {
-            log.info(`Searching ${orgs.length} organizations…`);
-          }
-          const lists = await Promise.all(
-            orgs.map((o) => client.searchTasksInOrganization(o.oid, params)),
-          );
-          tasks = lists.flat();
-        }
-      } else {
+      const scopeFlagCount =
+        (cmdOpts.project ? 1 : 0) +
+        (cmdOpts.inbox === true ? 1 : 0) +
+        (cmdOpts.org ? 1 : 0) +
+        (cmdOpts.allOrgs === true ? 1 : 0);
+      if (scopeFlagCount === 0) {
         throw new ValidationError(
-          "`quire mine` requires one of --project, --org, or --all-orgs.",
+          "`quire mine` requires exactly one of --project, --inbox, --org, or --all-orgs.",
         );
       }
+      if (scopeFlagCount > 1) {
+        throw new ValidationError(
+          "`quire mine`: --project, --inbox, --org, and --all-orgs are mutually exclusive.",
+        );
+      }
+      if (cmdOpts.skipInbox === true && cmdOpts.allOrgs !== true) {
+        throw new ValidationError("--skip-inbox only applies with --all-orgs.");
+      }
+
+      const client = createQuireClient({ profile: root.profile });
+
+      let scope: QuireMyTasksScope;
+      if (cmdOpts.project) {
+        const oid = await client.resolveProjectOid(cmdOpts.project);
+        scope = { project: oid };
+      } else if (cmdOpts.inbox === true) {
+        scope = { project: "-" };
+      } else if (cmdOpts.org) {
+        const oid = await client.resolveOrgOid(cmdOpts.org);
+        scope = { organization: oid };
+      } else {
+        scope = { allOrganizations: true, inbox: cmdOpts.skipInbox !== true };
+      }
+
+      const filter: QuireMyTasksFilter = cmdOpts.limit
+        ? { limit: parseLimit(cmdOpts.limit) }
+        : {};
+
+      const tasks = await client.getMyTasks(scope, filter);
 
       renderList(tasks, root, { columns: TASK_LIST_COLUMNS, toId: (t) => t.oid });
     });

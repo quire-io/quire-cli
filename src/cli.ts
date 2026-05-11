@@ -100,7 +100,7 @@ Tasks (read):
   quire task search <query>    Search tasks; scope with --project / --org / --folder
   quire task subtasks <id>     List a task's direct subtasks
   quire task comments <id>     List a task's comments
-  quire mine                   List tasks assigned to me; scope with --project / --org / --all-orgs
+  quire mine                   List tasks assigned to me; scope with --project / --inbox / --org / --all-orgs
 
 Tasks (write):
   quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest)
