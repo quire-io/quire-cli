@@ -5,7 +5,7 @@ import { getApiServer, resolveConfigPaths } from "../config.js";
 import { writeCredentials } from "../credentials.js";
 import { CliError, ExitCode } from "../errors.js";
 import { createLogger } from "../log.js";
-import { QUIRE_CLI_CLIENT_ID, QUIRE_CLI_LOOPBACK_PORT } from "../oauth/config.js";
+import { QUIRE_CLI_CLIENT_ID } from "../oauth/config.js";
 import { startLoopbackServer } from "../oauth/loopback.js";
 import { generatePkce, generateState } from "../oauth/pkce.js";
 import { openUrl } from "../util/open-url.js";
@@ -29,7 +29,7 @@ export function registerLoginCommand(program: Command): void {
       const apiServer = getApiServer();
       const { codeVerifier, codeChallenge } = generatePkce();
       const state = generateState();
-      const server = await startLoopbackServer({ port: QUIRE_CLI_LOOPBACK_PORT });
+      const server = await startLoopbackServer();
 
       try {
         const authorizeUrl = new URL(`${apiServer}/oauth`);

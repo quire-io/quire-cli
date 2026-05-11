@@ -49,9 +49,8 @@ h1{font-size:1.4rem;color:#b00020}p{color:#555}code{background:#f4f4f4;padding:.
 export interface StartLoopbackServerOptions {
   /**
    * TCP port to bind. Defaults to 0 (random free port) per RFC 8252 §7.3.
-   * Pass a fixed port when the OAuth app's registered redirect URI requires
-   * an exact-match port — `EADDRINUSE` will surface as a clean error if
-   * another process holds it.
+   * Tests may pass an explicit port to assert behavior on a known address;
+   * production code should leave this unset so the kernel picks a free port.
    */
   port?: number;
 }
@@ -128,13 +127,12 @@ export async function startLoopbackServer(
 
   const port = opts.port ?? 0;
   await new Promise<void>((resolve, reject) => {
+    // With port: 0 the kernel picks a free port, so EADDRINUSE is essentially
+    // unreachable from the production call site. Tests that pass an explicit
+    // port still get a clean error if the port is occupied.
     server.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE") {
-        reject(
-          new Error(
-            `Port ${port} is already in use. Close whatever is holding it, or set $QUIRE_CLI_LOOPBACK_PORT to a free port (must match the OAuth app's registered redirect URI).`,
-          ),
-        );
+        reject(new Error(`Port ${port} is already in use.`));
       } else {
         reject(err);
       }
