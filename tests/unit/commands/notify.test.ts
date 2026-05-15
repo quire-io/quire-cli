@@ -67,4 +67,62 @@ describe("quire notify", () => {
     await program.parseAsync(["node", "test", "--quiet", "notify", "--message", "hi"]);
     expect(stderrOutput()).toBe("");
   });
+
+  it("passes recipients when --recipient is repeated", async () => {
+    captureStdout();
+    captureStderr();
+    const program = makeRootProgram();
+    registerNotifyCommand(program);
+    await program.parseAsync([
+      "node", "test", "notify",
+      "--message", "ship it",
+      "--recipient", "alice@example.com",
+      "--recipient", "bob@example.com",
+    ]);
+    expect(sendNotification).toHaveBeenCalledWith({
+      message: "ship it",
+      recipients: ["alice@example.com", "bob@example.com"],
+    });
+  });
+
+  it("sends recipients: [\"*\"] with --all", async () => {
+    captureStdout();
+    captureStderr();
+    const program = makeRootProgram();
+    registerNotifyCommand(program);
+    await program.parseAsync([
+      "node", "test", "notify",
+      "--message", "site-wide",
+      "--all",
+    ]);
+    expect(sendNotification).toHaveBeenCalledWith({
+      message: "site-wide",
+      recipients: ["*"],
+    });
+  });
+
+  it("rejects combining --all and --recipient", async () => {
+    captureStdout();
+    captureStderr();
+    const program = makeRootProgram();
+    registerNotifyCommand(program);
+    await expect(
+      program.parseAsync([
+        "node", "test", "notify",
+        "--message", "x",
+        "--all",
+        "--recipient", "alice@example.com",
+      ]),
+    ).rejects.toThrow(/Cannot combine --all and --recipient/);
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it("omits recipients when neither flag is set (self-notify)", async () => {
+    captureStdout();
+    captureStderr();
+    const program = makeRootProgram();
+    registerNotifyCommand(program);
+    await program.parseAsync(["node", "test", "notify", "--message", "hi"]);
+    expect(sendNotification).toHaveBeenCalledWith({ message: "hi" });
+  });
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 — 2026-05-15
+
+- `quire notify` gains `--recipient <user>` (repeatable; OID, ID, or email) and `--all` (sends `recipients: ["*"]` — broadcast to every user visible to the app). Combining `--all` with `--recipient` is rejected up front. Omitting both keeps the previous self-notify behavior. Recipients must be colleagues visible via `GET /user/list`; the server rate-limits at 1 unit per 10 delivered recipients (rounded up, minimum 1), and unknown / invisible recipients return 404 with an identical response for every case.
+- `quire task peekaboo` gains `--show` to un-hide a task (sends `peekaboo: false`), and now rejects `--reshow-at` timestamps that are already in the past — the server would otherwise archive the task with a stale auto-unarchive time.
+- Bumps `@quire-io/api-client` to `^0.1.8`.
+
 ## 0.1.3 — 2026-05-11
 
 - `quire mine` switched to the new `QuireClient.getMyTasks(scope, filter)` helper from `@quire-io/api-client` 0.1.7. Behaviour changes:
