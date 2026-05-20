@@ -55,6 +55,16 @@ Run `quire --help` (or `quire <command> --help`) for the full command reference.
 
 See [AI_GUIDE.md](AI_GUIDE.md) for recipes pairing the CLI with an LLM (Claude, ChatGPT, etc.) — project digests, weekly standups, bulk task creation from meeting notes, and more.
 
+## Using from OpenClaw
+
+OpenClaw users can install the [Quire skill from ClawHub](https://github.com/quire-io/openclaw-quire-skill) so chat agents can read your tasks and projects through this CLI:
+
+```bash
+openclaw skills install quire
+```
+
+Auth reuses the existing `quire login` token store — no extra credentials.
+
 ## Updating
 
 How you update depends on how you installed:
