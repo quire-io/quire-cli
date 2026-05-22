@@ -108,6 +108,20 @@ Review the LLM's output before running — `bulk-subtasks` is atomic per
 call, but the tasks themselves are real. Use `quire undo task <oid>`
 on anything you didn't mean to create.
 
+For an agent-in-the-loop "propose → approve → execute" pattern, pass
+`--dry-run`. The server runs every validation, permission check, and
+business rule inside a transaction, then rolls back — the result table
+mirrors what a real call would return without persisting anything:
+
+```bash
+... | quire task bulk-subtasks <epic-id> --from-file - --dry-run
+```
+
+If the dry-run is clean, resubmit without the flag. Same flag works on
+every `quire task bulk-*` subcommand. `bulk-delete --dry-run` also
+skips the interactive confirmation prompt — nothing is deleted, so
+there's nothing to confirm.
+
 ---
 
 ## Recipe 6 — Triage stale or stuck tasks

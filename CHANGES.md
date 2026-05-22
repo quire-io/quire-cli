@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 — 2026-05-22
+
+- All seven `quire task bulk-*` subcommands accept `--dry-run` (`bulk-create`, `bulk-subtasks`, `bulk-update`, `bulk-delete`, `bulk-move`, `bulk-transfer`, `bulk-approve`). The server runs the full operation — auth, permission checks, FK existence, business rules — inside a transaction and rolls back before responding, so the result table mirrors what a real call would return without persisting anything. `bulk-delete --dry-run` also skips the interactive confirmation prompt since no delete is performed. A `Dry run — no changes were persisted.` notice is written to stderr (stdout stays clean for `--quiet` OID piping and `--json` streams).
+- Bumps `@quire-io/api-client` to `^0.1.9`. Transitively switches `getRateLimit` to the renamed `/rate-limit` server path; no CLI surface change.
+
 ## 0.1.4 — 2026-05-15
 
 - `quire notify` gains `--recipient <user>` (repeatable; OID, ID, or email) and `--all` (sends `recipients: ["*"]` — broadcast to every user visible to the app). Combining `--all` with `--recipient` is rejected up front. Omitting both keeps the previous self-notify behavior. Recipients must be colleagues visible via `GET /user/list`; the server rate-limits at 1 unit per 10 delivered recipients (rounded up, minimum 1), and unknown / invisible recipients return 404 with an identical response for every case.

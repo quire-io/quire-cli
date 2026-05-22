@@ -60,6 +60,14 @@ type BulkResultRow = null | {
  * or `null` for items that failed individually inside an atomic call. One
  * column set covers all three; absent fields render as empty cells.
  */
+// Server-side dry-run rolls back inside a transaction — the result payload
+// matches a real call's shape but no DB changes persist. Surface that on
+// stderr so the user can't miss it; stderr keeps `--quiet` OID piping and
+// `--json` stdout streams undisturbed.
+function noteDryRun(): void {
+  process.stderr.write("Dry run — no changes were persisted.\n");
+}
+
 function renderBulkResults(results: readonly unknown[], root: GlobalOpts): void {
   if (root.json === true) {
     process.stdout.write(`${JSON.stringify(results)}\n`);
@@ -613,13 +621,17 @@ export function registerTaskCommand(program: Command): void {
     .command("bulk-create <project>")
     .description("Create many tasks atomically (max 300/call). --from-file accepts a JSON array of task objects; '-' reads stdin.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
-    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
+    .action(async (project: string, cmdOpts: { fromFile: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
       const items = await readBulkItems(cmdOpts.fromFile);
-      const results = await client.bulkCreateTasks(projectOid, items);
+      const results = await client.bulkCreateTasks(projectOid, items, {
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
+      });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
@@ -627,7 +639,8 @@ export function registerTaskCommand(program: Command): void {
     .description("Create many subtasks under one parent atomically (max 300/call). <parent> = OID, slug/#N, or URL.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
     .option("--position <pos>", "Insert position: parent | before | after (default: server's submit-order)")
-    .action(async (parent: string, cmdOpts: { fromFile: string; position?: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
+    .action(async (parent: string, cmdOpts: { fromFile: string; position?: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       if (cmdOpts.position !== undefined && !["parent", "before", "after"].includes(cmdOpts.position)) {
@@ -637,38 +650,50 @@ export function registerTaskCommand(program: Command): void {
       const items = await readBulkItems(cmdOpts.fromFile);
       const results = await client.bulkCreateSubtasks(parentOid, items, {
         ...(cmdOpts.position !== undefined ? { position: cmdOpts.position as "parent" | "before" | "after" } : {}),
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
     .command("bulk-update <project>")
     .description("Update many tasks atomically. Each item must include `oid`.")
     .requiredOption("--from-file <file>", "JSON array of update objects (or '-' for stdin)")
-    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
+    .action(async (project: string, cmdOpts: { fromFile: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
       const items = await readBulkItems(cmdOpts.fromFile);
-      const results = await client.bulkUpdateTasks(projectOid, items);
+      const results = await client.bulkUpdateTasks(projectOid, items, {
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
+      });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
     .command("bulk-delete <project>")
     .description("Delete many tasks. Refs are OIDs or numeric IDs; one per line, blank / '#'-comment lines OK, JSON array also accepted.")
     .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
-    .action(async (project: string, cmdOpts: { fromFile: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; tasks survive and the confirmation prompt is skipped.")
+    .action(async (project: string, cmdOpts: { fromFile: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
       const refs = await readBulkRefs(cmdOpts.fromFile);
-      await confirmDestructive({
-        question: `Delete ${refs.length} task(s) from project ${projectOid}? Restore individually with \`quire task undo-remove\`.`,
-        yes: root.yes,
+      if (cmdOpts.dryRun !== true) {
+        await confirmDestructive({
+          question: `Delete ${refs.length} task(s) from project ${projectOid}? Restore individually with \`quire task undo-remove\`.`,
+          yes: root.yes,
+        });
+      }
+      const results = await client.bulkRemoveTasks(projectOid, refs, {
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
-      const results = await client.bulkRemoveTasks(projectOid, refs);
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
@@ -677,7 +702,8 @@ export function registerTaskCommand(program: Command): void {
     .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
     .requiredOption("--to <id>", "New parent task OID, or 'root' to move under the project root")
     .option("--position <pos>", "'parent', 'before', or 'after'")
-    .action(async (project: string, cmdOpts: { fromFile: string; to: string; position?: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
+    .action(async (project: string, cmdOpts: { fromFile: string; to: string; position?: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
@@ -687,8 +713,10 @@ export function registerTaskCommand(program: Command): void {
       const results = await client.bulkMoveTasks(projectOid, refs, {
         task: parent,
         ...(position !== undefined ? { position } : {}),
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
@@ -702,9 +730,11 @@ export function registerTaskCommand(program: Command): void {
     .option("--keep-status", "Preserve status during transfer")
     .option("--keep-custom-fields", "Preserve custom fields during transfer")
     .option("--invite", "Invite the assignees to the target project")
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
     .action(async (project: string, cmdOpts: {
       fromFile: string; to: string; task?: string; position?: string;
       keepTags?: boolean; keepStatus?: boolean; keepCustomFields?: boolean; invite?: boolean;
+      dryRun?: boolean;
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -721,8 +751,10 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.keepTags === true ? { tag: true } : {}),
         ...(cmdOpts.keepStatus === true ? { status: true } : {}),
         ...(cmdOpts.keepCustomFields === true ? { customField: true } : {}),
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   task
@@ -731,7 +763,8 @@ export function registerTaskCommand(program: Command): void {
     .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
     .requiredOption("--state <state>", "'request' | 'approve' | 'reject' | 'change'")
     .option("--category <id>", "Approval category (only used when --state request)")
-    .action(async (project: string, cmdOpts: { fromFile: string; state: string; category?: string }) => {
+    .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
+    .action(async (project: string, cmdOpts: { fromFile: string; state: string; category?: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
@@ -743,8 +776,10 @@ export function registerTaskCommand(program: Command): void {
       const results = await client.bulkApproveTasks(projectOid, refs, {
         state: cmdOpts.state as (typeof validStates)[number],
         ...(cmdOpts.category !== undefined ? { category: cmdOpts.category } : {}),
+        ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
       renderBulkResults(results, root);
+      if (cmdOpts.dryRun === true) noteDryRun();
     });
 
   // -------- Approval (Phase 5.3 slice B) --------
