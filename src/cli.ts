@@ -195,6 +195,7 @@ Chats / docs / insights (write):
   quire insight update <oid>              [--name / --description / --icon-color / --image / --archive / --unarchive]
   quire insight delete <oid>              (prompts unless --yes)
   quire insight undo-remove <oid>
+  quire insight run <oid>                 Run an insight and print the aggregated rows ([--group-by member|section] [--status active|completed|all])
 
 Generic undo:
   quire undo <kind> <oid>                 kind = task | chat | comment | document | insight | sublist

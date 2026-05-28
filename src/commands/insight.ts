@@ -4,6 +4,7 @@ import { resolveColor } from "@quire-io/api-client";
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
+import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
@@ -151,6 +152,49 @@ export function registerInsightCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const i = await client.undoRemoveInsight(oid);
       renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
+    });
+
+  insight
+    .command("run <oid>")
+    .description("Run a project-scoped insight server-side and print the aggregated rows.")
+    .option("--group-by <axis>", "'member' (default) or 'section'")
+    .option("--status <status>", "'active' (default), 'completed', or 'all'")
+    .action(async (oid: string, cmdOpts: { groupBy?: string; status?: string }) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const validGroupBy = ["member", "section"] as const;
+      if (cmdOpts.groupBy !== undefined && !(validGroupBy as readonly string[]).includes(cmdOpts.groupBy)) {
+        throw new ValidationError(`--group-by must be one of ${validGroupBy.join(", ")}; got "${cmdOpts.groupBy}".`);
+      }
+      const validStatus = ["active", "completed", "all"] as const;
+      if (cmdOpts.status !== undefined && !(validStatus as readonly string[]).includes(cmdOpts.status)) {
+        throw new ValidationError(`--status must be one of ${validStatus.join(", ")}; got "${cmdOpts.status}".`);
+      }
+      const rows = await client.runInsight(oid, {
+        ...(cmdOpts.groupBy !== undefined ? { groupBy: cmdOpts.groupBy as (typeof validGroupBy)[number] } : {}),
+        ...(cmdOpts.status !== undefined ? { status: cmdOpts.status as (typeof validStatus)[number] } : {}),
+      });
+      if (root.json === true) {
+        process.stdout.write(`${JSON.stringify(rows)}\n`);
+        return;
+      }
+      if (rows.length === 0) return;
+      const [headers, ...data] = rows;
+      const headerStrings = (headers ?? []).map((h) => String(h ?? ""));
+      if (root.quiet === true) {
+        for (const row of data) {
+          process.stdout.write(`${row.map((cell) => String(cell ?? "")).join("\t")}\n`);
+        }
+        return;
+      }
+      printTable(
+        data,
+        headerStrings.map((header, i) => ({
+          header,
+          get: (row: unknown[]) => String(row[i] ?? ""),
+        })),
+        { noTruncate: root.truncate === false },
+      );
     });
 
   // -------- Custom field definitions on insights (Phase 5.3 slice C) --------
