@@ -14,6 +14,7 @@ import { confirmDestructive } from "../util/confirm.js";
 import { parseRecurrence } from "../util/recurrence.js";
 import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveTaskOid } from "../util/task-id.js";
+import { resolveTextInput } from "../util/text-input.js";
 
 const ATTACHMENT_FIELDS = [
   { label: "Name", get: (a: { name: string }) => a.name },
@@ -786,10 +787,16 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("approve <id>")
-    .description("Set a task's approval state.")
+    .description("Set a task's approval state. Optionally post a companion comment.")
     .requiredOption("--state <state>", "request | approve | reject | change")
     .option("--category <id>", "Approval category id (only meaningful for --state request)")
-    .action(async (id: string, cmdOpts: { state: string; category?: string }) => {
+    .option("--comment <text>", "Post a companion comment with the approval; '-' for stdin or '@file' for a file. Server prefixes with **<stream>: <status>**.")
+    .option("--comment-pinned", "Pin the companion comment (requires --comment).")
+    .option("--comment-as-user <user>", "Post the companion comment as another user OID/id/email (requires --comment).")
+    .action(async (id: string, cmdOpts: {
+      state: string; category?: string;
+      comment?: string; commentPinned?: boolean; commentAsUser?: string;
+    }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
@@ -797,9 +804,20 @@ export function registerTaskCommand(program: Command): void {
       if (!(validStates as readonly string[]).includes(cmdOpts.state)) {
         throw new ValidationError(`--state must be one of ${validStates.join(", ")}; got "${cmdOpts.state}"`);
       }
+      if (cmdOpts.comment === undefined && (cmdOpts.commentPinned === true || cmdOpts.commentAsUser !== undefined)) {
+        throw new ValidationError("--comment-pinned / --comment-as-user require --comment.");
+      }
+      const comment = cmdOpts.comment !== undefined
+        ? {
+            description: await resolveTextInput(cmdOpts.comment),
+            ...(cmdOpts.commentPinned === true ? { pinned: true } : {}),
+            ...(cmdOpts.commentAsUser !== undefined ? { asUser: cmdOpts.commentAsUser } : {}),
+          }
+        : undefined;
       const a = await client.approveTask(oid, {
         state: cmdOpts.state as (typeof validStates)[number],
         ...(cmdOpts.category !== undefined ? { category: cmdOpts.category } : {}),
+        ...(comment !== undefined ? { comment } : {}),
       });
       renderObject(a, root, { fields: APPROVAL_FIELDS, toId: () => oid });
     });

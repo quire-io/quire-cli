@@ -126,6 +126,7 @@ Tasks (bulk):
 
 Tasks (approval / timelogs / recurrence):
   quire task approve <id> --state ...           Set a task's approval state
+                                                Add --comment <text|-|@file> [--comment-pinned / --comment-as-user] to post a companion comment
   quire task revoke-approval <id>               Revoke any approval state
   quire task timelog add <id>     --start --end [--user / --billable / --note]
   quire task timelog update <id>  --start --end [--new-start / --new-end / --note / ...]
