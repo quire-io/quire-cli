@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 — 2026-05-28
+
+- `quire task approve <id>` accepts an optional companion comment: `--comment <text|-|@file>` posts a comment on the task as a side effect of the approval, server-prefixed with `**<stream>: <status>**`. `--comment-pinned` pins it and `--comment-as-user <user>` posts as another OID/id/email; both require `--comment`. `bulk-approve` is not extended — the server intentionally exposed this on the single-task endpoint only.
+- `quire insight run <oid>` — runs a project-scoped insight server-side and prints the aggregated result. Default render is a padded table (row 0 of the API response becomes the header row); `--json` emits the raw 2D array; `--quiet` emits data rows tab-separated, no headers. `--group-by member|section` and `--status active|completed|all` are forwarded as query params; both default server-side when omitted.
+- Bumps `@quire-io/api-client` to `^0.1.11`. Transitive: numeric custom-field filters on `searchTasks` (`ge:` / `gt:` / `le:` / `lt:` / `between:v1,v2` / `isNull` / …) — the CLI doesn't yet surface `--custom-field` as a filter on `task search`, so this is dormant until that flag lands.
+
 ## 0.1.5 — 2026-05-22
 
 - All seven `quire task bulk-*` subcommands accept `--dry-run` (`bulk-create`, `bulk-subtasks`, `bulk-update`, `bulk-delete`, `bulk-move`, `bulk-transfer`, `bulk-approve`). The server runs the full operation — auth, permission checks, FK existence, business rules — inside a transaction and rolls back before responding, so the result table mirrors what a real call would return without persisting anything. `bulk-delete --dry-run` also skips the interactive confirmation prompt since no delete is performed. A `Dry run — no changes were persisted.` notice is written to stderr (stdout stays clean for `--quiet` OID piping and `--json` streams).

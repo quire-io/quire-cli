@@ -1,6 +1,6 @@
 {
   "name": "@quire-io/quire-cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Command-line interface for the Quire API.",
   "type": "module",
   "publishConfig": {
