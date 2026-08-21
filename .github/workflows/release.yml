@@ -236,9 +236,12 @@ jobs:
   # runner. v0.1.2's auto-bump shipped only the linux-x64 entry as a
   # result, leaving mac/linux-arm64 users on v0.1.1 binaries.
   #
-  # The secret HOMEBREW_TAP_PUSH_TOKEN must be a classic PAT with `repo`
-  # scope (fine-grained PATs are not enough — `git push` to the tap and
-  # `gh pr create` both need full repo access on quire-io/homebrew-quire).
+  # Auth: a short-lived installation token minted from the org's GitHub App
+  # (App ID in the TAP_APP_ID variable, private key in the
+  # TAP_APP_PRIVATE_KEY secret). The App is installed on homebrew-quire
+  # only, with Contents + Pull requests read/write. Unlike the PAT this
+  # replaced, the App's private key never expires — v0.1.7's bump failed
+  # on a lapsed PAT.
   bump-tap:
     name: Bump Homebrew tap
     needs: release
@@ -249,11 +252,20 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      - name: Mint tap token from the GitHub App
+        id: tap-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: quire-io
+          repositories: homebrew-quire
+
       - name: Checkout tap
         uses: actions/checkout@v4
         with:
           repository: quire-io/homebrew-quire
-          token: ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
+          token: ${{ steps.tap-token.outputs.token }}
           path: tap
 
       - name: Download SHA256SUMS from this release
@@ -277,7 +289,7 @@ jobs:
 
       - name: Commit, push, open PR
         env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_PUSH_TOKEN }}
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           cd tap
