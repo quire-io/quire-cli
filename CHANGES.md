@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 — 2026-08-21
+
+- New `quire dashboard` command group wrapping the Dashboard API (server release Jul 20 2026): `list <owner>` / `get <id>` / `create <owner>` / `update <oid>` / `delete <oid>` / `undo-remove <oid>`. `--owner-type project|organization|folder|smart-folder` (default `project`); projects and organizations resolve from OID / slug / URL, folders and smart-folders must be passed as OIDs (no resolution endpoint). `get` also accepts `"owner-id/<dashboard-id>"`. `update` clears dates via `--start null` / `--due null` (same convention as `task dates`) and archives via `--archive` / `--unarchive`. The API manages the dashboard container only — widget definitions aren't part of the public API yet.
+- `quire undo dashboard <oid>` joins the generic undo command.
+- Chat & doc follower management (server release Jun 4 2026): `chat create` / `doc create` gain repeatable `--follower <user>` (OID, ID, or email); `chat update` / `doc update` gain full-replace `--follower` (rejected when combined with `--add-follower` / `--remove-follower`), and `doc update` also gains `--add-follower` / `--remove-follower`. `chat get` / `doc get` now render a Followers line. Documents are followable only when project-owned — the server returns 400 otherwise.
+- Bumps `@quire-io/api-client` to `^0.1.12`. No CLI change needed for the Jul 31 2026 Comment API URL-form removals — the client already uses only the surviving forms.
+
 ## 0.1.6 — 2026-05-28
 
 - `quire task approve <id>` accepts an optional companion comment: `--comment <text|-|@file>` posts a comment on the task as a side effect of the approval, server-prefixed with `**<stream>: <status>**`. `--comment-pinned` pins it and `--comment-as-user <user>` posts as another OID/id/email; both require `--comment`. `bulk-approve` is not extended — the server intentionally exposed this on the single-task endpoint only.
