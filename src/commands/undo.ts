@@ -10,6 +10,7 @@ const VALID_KINDS = [
   "task",
   "chat",
   "comment",
+  "dashboard",
   "document",
   "insight",
   "sublist",
@@ -17,8 +18,8 @@ const VALID_KINDS = [
 
 type Kind = (typeof VALID_KINDS)[number];
 
-// Render-shape covering every undo target — chat / comment / document /
-// insight / sublist — without forcing each call site to declare its own
+// Render-shape covering every undo target — chat / comment / dashboard /
+// document / insight / sublist — without forcing each call site to declare its own
 // field set. Each `get` reads optionally; comments don't have name/id, etc.
 type GenericResource = {
   oid: string;
@@ -66,6 +67,11 @@ export function registerUndoCommand(program: Command): void {
         case "comment": {
           const c = await client.undoRemoveComment(oid);
           renderObject(c as GenericResource, root, { fields: GENERIC_FIELDS, toId: (r) => r.oid });
+          return;
+        }
+        case "dashboard": {
+          const d = await client.undoRemoveDashboard(oid);
+          renderObject(d, root, { fields: GENERIC_FIELDS, toId: (d) => d.oid });
           return;
         }
         case "document": {

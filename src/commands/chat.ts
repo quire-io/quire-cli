@@ -16,6 +16,7 @@ const CHAT_FIELDS = [
   { label: "ID", get: (c: { id: string }) => c.id },
   { label: "OID", get: (c: { oid: string }) => c.oid },
   { label: "Description", get: (c: { descriptionText?: string }) => c.descriptionText },
+  { label: "Followers", get: (c: { followers?: { name: string }[] }) => c.followers?.map((f) => f.name).join(", ") },
   { label: "URL", get: (c: { url?: string }) => c.url },
 ];
 
@@ -116,7 +117,8 @@ export function registerChatCommand(program: Command): void {
     .requiredOption("--name <name>", "Chat name (required)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--partner <oid>", "Partner OID, if this is a partner chat")
-    .action(async (project: string, cmdOpts: { name: string; description?: string; partner?: string }) => {
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[])
+    .action(async (project: string, cmdOpts: { name: string; description?: string; partner?: string; follower?: string[] }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
@@ -125,6 +127,7 @@ export function registerChatCommand(program: Command): void {
         name: cmdOpts.name,
         ...(description !== undefined ? { description } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
+        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
       });
       renderObject(c, root, { fields: CHAT_FIELDS, toId: (c) => c.oid });
     });
@@ -136,28 +139,33 @@ export function registerChatCommand(program: Command): void {
     .option("--description <text>", "New description ('-' = stdin, '@file' = file)")
     .option("--archive", "Archive the chat")
     .option("--unarchive", "Unarchive the chat")
+    .option("--follower <user>", "Replace the full follower list; repeat for multiple", append, [] as string[])
     .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
     .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
     .action(async (oid: string, cmdOpts: {
       name?: string; description?: string;
       archive?: boolean; unarchive?: boolean;
-      addFollower?: string[]; removeFollower?: string[];
+      follower?: string[]; addFollower?: string[]; removeFollower?: string[];
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       if (cmdOpts.archive === true && cmdOpts.unarchive === true) {
         throw new ValidationError("Cannot combine --archive and --unarchive.");
       }
+      if ((cmdOpts.follower?.length ?? 0) > 0 && ((cmdOpts.addFollower?.length ?? 0) > 0 || (cmdOpts.removeFollower?.length ?? 0) > 0)) {
+        throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
+      }
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
-      const body: { name?: string; description?: string; archived?: boolean; addFollowers?: string[]; removeFollowers?: string[] } = {};
+      const body: { name?: string; description?: string; archived?: boolean; followers?: string[]; addFollowers?: string[]; removeFollowers?: string[] } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
       if (cmdOpts.archive === true) body.archived = true;
       if (cmdOpts.unarchive === true) body.archived = false;
+      if ((cmdOpts.follower?.length ?? 0) > 0) body.followers = cmdOpts.follower;
       if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
       if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`chat update` requires at least one of --name / --description / --archive / --unarchive / --add-follower / --remove-follower.");
+        throw new ValidationError("`chat update` requires at least one of --name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower.");
       }
       const c = await client.updateChat(oid, body);
       renderObject(c, root, { fields: CHAT_FIELDS, toId: (c) => c.oid });

@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { registerChatCommand } from "./commands/chat.js";
 import { registerColorsCommand } from "./commands/colors.js";
 import { registerCommentCommand } from "./commands/comment.js";
+import { registerDashboardCommand } from "./commands/dashboard.js";
 import { registerDocCommand } from "./commands/doc.js";
 import { registerInsightCommand } from "./commands/insight.js";
 import { registerLoginCommand } from "./commands/login.js";
@@ -68,6 +69,7 @@ registerCommentCommand(program);
 registerChatCommand(program);
 registerDocCommand(program);
 registerInsightCommand(program);
+registerDashboardCommand(program);
 registerResolveCommand(program);
 registerColorsCommand(program);
 registerNotifyCommand(program);
@@ -169,11 +171,12 @@ Project metadata (write):
   quire status update <project> <value>  Update a status (--name / --color / --new-value)
   quire status delete <project> <value>  Delete a status (prompts unless --yes)
 
-Comments / chats / docs / insights (read):
+Comments / chats / docs / insights / dashboards (read):
   quire comment list <task>    List comments on a task (alias for "quire task comments"; also: 'comment get <oid>')
   quire chat list <project>    List chats / chat get <id> / chat comments <id>
   quire doc list <project>     List documents / doc get <id>
   quire insight list <project> List insights / insight get <id>
+  quire dashboard list <owner> List dashboards / dashboard get <id> ([--owner-type project|organization|folder|smart-folder])
 
 Comments (write):
   quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file)
@@ -181,14 +184,14 @@ Comments (write):
   quire comment attach <oid> <file>       Attach a file to a comment ('-' = stdin; --filename / --content-type optional)
   quire comment delete <oid>              Delete a comment (prompts unless --yes)
 
-Chats / docs / insights (write):
-  quire chat create <project>             --name [--description / --partner]
-  quire chat update <oid>                 [--name / --description / --archive / --unarchive / --add-follower / --remove-follower]
+Chats / docs / insights / dashboards (write):
+  quire chat create <project>             --name [--description / --partner / --follower]
+  quire chat update <oid>                 [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
   quire chat delete <oid>                 (prompts unless --yes)
   quire chat undo-remove <oid>
   quire chat comment add <chat-id>        --text [--pin]
-  quire doc create <project>              --name [--description]
-  quire doc update <oid>                  [--name / --description / --archive / --unarchive]
+  quire doc create <project>              --name [--description / --follower]
+  quire doc update <oid>                  [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
   quire doc delete <oid>                  (prompts unless --yes)
   quire doc undo-remove <oid>
   quire insight create <project>          --name [--id / --description / --icon-color / --image]
@@ -196,9 +199,13 @@ Chats / docs / insights (write):
   quire insight delete <oid>              (prompts unless --yes)
   quire insight undo-remove <oid>
   quire insight run <oid>                 Run an insight and print the aggregated rows ([--group-by member|section] [--status active|completed|all])
+  quire dashboard create <owner>          --name [--owner-type / --id / --description / --icon-color / --image / --partner / --start / --due]
+  quire dashboard update <oid>            [--id / --name / --description / --icon-color / --image / --start / --due / --archive / --unarchive] ('null' clears a date)
+  quire dashboard delete <oid>            (prompts unless --yes)
+  quire dashboard undo-remove <oid>
 
 Generic undo:
-  quire undo <kind> <oid>                 kind = task | chat | comment | document | insight | sublist
+  quire undo <kind> <oid>                 kind = task | chat | comment | dashboard | document | insight | sublist
 
 URL resolver:
   quire resolve <url>          Paste any Quire URL, get the typed resource back
