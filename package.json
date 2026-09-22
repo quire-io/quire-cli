@@ -24,6 +24,8 @@
     "build": "tsc",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit",
+    "gen-coverage": "tsx scripts/gen-coverage.ts",
+    "check-coverage": "tsx scripts/gen-coverage.ts && git diff --exit-code COVERAGE.md",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",

@@ -31,6 +31,13 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Drift guard: COVERAGE.md is generated from the commander tree in
+      # src/program.ts. If a command or flag lands without re-running
+      # `npm run gen-coverage`, this fails with a diff so the PR author
+      # re-runs it locally.
+      - name: Coverage doc is up to date
+        run: npm run check-coverage
+
   scripts:
     name: scripts (python)
     runs-on: ubuntu-latest

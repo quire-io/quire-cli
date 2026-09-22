@@ -49,7 +49,8 @@ quire task complete <task-id>
 quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 ```
 
-Run `quire --help` (or `quire <command> --help`) for the full command reference.
+Run `quire --help` (or `quire <command> --help`) for the full command reference, or see
+[COVERAGE.md](COVERAGE.md) for every command and flag on one page.
 
 ## Using with AI
 
@@ -96,6 +97,9 @@ refresh token server-side.
 ## Contributing
 
 Open an issue to discuss before sending a PR.
+
+If your change adds or renames a command or flag, run `npm run gen-coverage` and commit the
+refreshed [COVERAGE.md](COVERAGE.md) — CI runs `npm run check-coverage` and fails on a diff.
 
 ## License
 
