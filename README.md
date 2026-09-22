@@ -50,11 +50,11 @@ quire mine --all-orgs --json | jq '.[].name'   # script-friendly
 ```
 
 Run `quire --help` (or `quire <command> --help`) for the full command reference, or see
-[COVERAGE.md](COVERAGE.md) for every command and flag on one page.
+[COVERAGE.md](https://github.com/quire-io/quire-cli/blob/main/COVERAGE.md) for every command and flag on one page.
 
 ## Using with AI
 
-See [AI_GUIDE.md](AI_GUIDE.md) for recipes pairing the CLI with an LLM (Claude, ChatGPT, etc.) — project digests, weekly standups, bulk task creation from meeting notes, and more.
+See [AI_GUIDE.md](https://github.com/quire-io/quire-cli/blob/main/AI_GUIDE.md) for recipes pairing the CLI with an LLM (Claude, ChatGPT, etc.) — project digests, weekly standups, bulk task creation from meeting notes, and more.
 
 ## Using from OpenClaw
 
@@ -99,7 +99,7 @@ refresh token server-side.
 Open an issue to discuss before sending a PR.
 
 If your change adds or renames a command or flag, run `npm run gen-coverage` and commit the
-refreshed [COVERAGE.md](COVERAGE.md) — CI runs `npm run check-coverage` and fails on a diff.
+refreshed [COVERAGE.md](https://github.com/quire-io/quire-cli/blob/main/COVERAGE.md) — CI runs `npm run check-coverage` and fails on a diff.
 
 ## License
 
