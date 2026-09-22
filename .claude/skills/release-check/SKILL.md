@@ -53,6 +53,8 @@ gh run list --workflow=release.yml --branch "v$V" --limit 1 --json status,conclu
 
 Expect `status: completed` and `conclusion: success`. If `in_progress`, **stop here and tell the user to re-run after it finishes** — the rest of the checks will be false negatives. If failed, surface the run ID and suggest `gh run view <id> --log-failed`.
 
+An **empty result** is not a pass. `gh run list` exits 0 and prints nothing both when no run exists and when a just-created run hasn't been indexed yet, so an empty step 3 is easy to read as a silent `✓`. Re-run the command once; if it is still empty, drop the `--branch` filter (`gh run list --workflow=release.yml --limit 5`) to tell the two apart, and report `✗` rather than moving on.
+
 ### 4. npm version exists
 
 ```bash
