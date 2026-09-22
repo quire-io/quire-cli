@@ -85,6 +85,7 @@ export function registerProjectCommand(program: Command): void {
     .option("--unarchive", "Unarchive the project")
     .option("--public", "Make the project public to the organization")
     .option("--private", "Make the project private")
+    .option("--follower <user>", "Replace the full follower list; repeat for multiple", append, [] as string[])
     .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
     .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
     .action(async (id: string, cmdOpts: {
@@ -92,7 +93,7 @@ export function registerProjectCommand(program: Command): void {
       start?: string; due?: string;
       archive?: boolean; unarchive?: boolean;
       public?: boolean; private?: boolean;
-      addFollower?: string[]; removeFollower?: string[];
+      follower?: string[]; addFollower?: string[]; removeFollower?: string[];
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -102,13 +103,16 @@ export function registerProjectCommand(program: Command): void {
       if (cmdOpts.public === true && cmdOpts.private === true) {
         throw new ValidationError("Cannot combine --public and --private.");
       }
+      if ((cmdOpts.follower?.length ?? 0) > 0 && ((cmdOpts.addFollower?.length ?? 0) > 0 || (cmdOpts.removeFollower?.length ?? 0) > 0)) {
+        throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
+      }
       const oid = await client.resolveProjectOid(id);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const body: {
         name?: string; description?: string;
         start?: string | null; due?: string | null;
         archived?: boolean; public?: boolean;
-        addFollowers?: string[]; removeFollowers?: string[];
+        followers?: string[]; addFollowers?: string[]; removeFollowers?: string[];
       } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
@@ -118,10 +122,11 @@ export function registerProjectCommand(program: Command): void {
       if (cmdOpts.unarchive === true) body.archived = false;
       if (cmdOpts.public === true) body.public = true;
       if (cmdOpts.private === true) body.public = false;
+      if ((cmdOpts.follower?.length ?? 0) > 0) body.followers = cmdOpts.follower;
       if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
       if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`project update` requires at least one of --name / --description / --start / --due / --archive / --unarchive / --public / --private / --add-follower / --remove-follower.");
+        throw new ValidationError("`project update` requires at least one of --name / --description / --start / --due / --archive / --unarchive / --public / --private / --follower / --add-follower / --remove-follower.");
       }
       const p = await client.updateProject(oid, body);
       renderObject(p, root, { fields: PROJECT_GET_FIELDS, toId: (p) => p.oid });

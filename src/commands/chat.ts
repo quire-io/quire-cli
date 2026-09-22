@@ -6,6 +6,8 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTextInput } from "../util/text-input.js";
 
@@ -16,6 +18,7 @@ const CHAT_FIELDS = [
   { label: "ID", get: (c: { id: string }) => c.id },
   { label: "OID", get: (c: { oid: string }) => c.oid },
   { label: "Description", get: (c: { descriptionText?: string }) => c.descriptionText },
+  { label: "Members", get: (c: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(c.members) },
   { label: "Followers", get: (c: { followers?: { name: string }[] }) => c.followers?.map((f) => f.name).join(", ") },
   { label: "URL", get: (c: { url?: string }) => c.url },
 ];
@@ -111,16 +114,20 @@ export function registerChatCommand(program: Command): void {
       });
     });
 
-  chat
+  addMemberOptions(chat
     .command("create <project>")
     .description("Create a chat in a project.")
     .requiredOption("--name <name>", "Chat name (required)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--partner <oid>", "Partner OID, if this is a partner chat")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[])
-    .action(async (project: string, cmdOpts: { name: string; description?: string; partner?: string; follower?: string[] }) => {
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[]))
+    .action(async (project: string, cmdOpts: { name: string; description?: string; partner?: string; follower?: string[] } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const members = resolveMembers(cmdOpts);
+      if (members !== undefined && cmdOpts.partner !== undefined) {
+        throw new ValidationError("Cannot combine --member / --members-admins-only with --partner — Quire rejects the pair with 400.");
+      }
       const projectOid = await client.resolveProjectOid(project);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const c = await client.createChat("project", projectOid, {
@@ -128,6 +135,7 @@ export function registerChatCommand(program: Command): void {
         ...(description !== undefined ? { description } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        ...(members !== undefined ? { members } : {}),
       });
       renderObject(c, root, { fields: CHAT_FIELDS, toId: (c) => c.oid });
     });

@@ -85,26 +85,31 @@ export function registerOrgCommand(program: Command): void {
     .description("Update organization metadata.")
     .option("--name <name>", "New name")
     .option("--description <text>", "New description ('-' = stdin, '@file' = file)")
+    .option("--follower <user>", "Replace the full follower list; repeat for multiple", append, [] as string[])
     .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
     .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
     .action(async (id: string, cmdOpts: {
       name?: string; description?: string;
-      addFollower?: string[]; removeFollower?: string[];
+      follower?: string[]; addFollower?: string[]; removeFollower?: string[];
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      if ((cmdOpts.follower?.length ?? 0) > 0 && ((cmdOpts.addFollower?.length ?? 0) > 0 || (cmdOpts.removeFollower?.length ?? 0) > 0)) {
+        throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
+      }
       const oid = await client.resolveOrgOid(id);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const body: {
         name?: string; description?: string;
-        addFollowers?: string[]; removeFollowers?: string[];
+        followers?: string[]; addFollowers?: string[]; removeFollowers?: string[];
       } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
+      if ((cmdOpts.follower?.length ?? 0) > 0) body.followers = cmdOpts.follower;
       if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
       if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`org update` requires at least one of --name / --description / --add-follower / --remove-follower.");
+        throw new ValidationError("`org update` requires at least one of --name / --description / --follower / --add-follower / --remove-follower.");
       }
       const o = await client.updateOrganization(oid, body);
       renderObject(o, root, { fields: ORG_GET_FIELDS, toId: (o) => o.oid });

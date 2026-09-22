@@ -4,6 +4,8 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
 
@@ -14,6 +16,7 @@ const SUBLIST_FIELDS = [
   { label: "Description", get: (s: { descriptionText?: string }) => s.descriptionText },
   { label: "Start", get: (s: { start?: string }) => s.start },
   { label: "Due", get: (s: { due?: string }) => s.due },
+  { label: "Members", get: (s: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(s.members) },
   { label: "URL", get: (s: { url?: string }) => s.url },
 ];
 
@@ -48,18 +51,20 @@ export function registerSublistCommand(program: Command): void {
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 
-  sublist
+  addMemberOptions(sublist
     .command("create <project>")
     .description("Create a sublist in a project.")
     .requiredOption("--name <name>", "Sublist name (required)")
-    .option("--description <text>", "Sublist description")
-    .action(async (project: string, cmdOpts: { name: string; description?: string }) => {
+    .option("--description <text>", "Sublist description"))
+    .action(async (project: string, cmdOpts: { name: string; description?: string } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const members = resolveMembers(cmdOpts);
       const projectOid = await client.resolveProjectOid(project);
       const s = await client.createSublist("project", projectOid, {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
+        ...(members !== undefined ? { members } : {}),
       });
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });

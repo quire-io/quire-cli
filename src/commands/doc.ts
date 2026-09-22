@@ -6,6 +6,8 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTextInput } from "../util/text-input.js";
 
@@ -17,6 +19,7 @@ const DOC_FIELDS = [
   { label: "OID", get: (d: { oid: string }) => d.oid },
   { label: "Description", get: (d: { descriptionText?: string }) => d.descriptionText },
   { label: "Followers", get: (d: { followers?: { name: string }[] }) => d.followers?.map((f) => f.name).join(", ") },
+  { label: "Members", get: (d: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(d.members) },
   { label: "URL", get: (d: { url?: string }) => d.url },
 ];
 
@@ -77,21 +80,23 @@ export function registerDocCommand(program: Command): void {
       renderObject(d, root, { fields: DOC_FIELDS, toId: (d) => d.oid });
     });
 
-  doc
+  addMemberOptions(doc
     .command("create <project>")
     .description("Create a document in a project. --description accepts '-' (stdin) or '@file'.")
     .requiredOption("--name <name>", "Document name (required)")
     .option("--description <text>", "Document description; '-' for stdin or '@file' for a file")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only.", append, [] as string[])
-    .action(async (project: string, cmdOpts: { name: string; description?: string; follower?: string[] }) => {
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only.", append, [] as string[]))
+    .action(async (project: string, cmdOpts: { name: string; description?: string; follower?: string[] } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const members = resolveMembers(cmdOpts);
       const projectOid = await client.resolveProjectOid(project);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const d = await client.createDocument("project", projectOid, {
         name: cmdOpts.name,
         ...(description !== undefined ? { description } : {}),
         ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        ...(members !== undefined ? { members } : {}),
       });
       renderObject(d, root, { fields: DOC_FIELDS, toId: (d) => d.oid });
     });

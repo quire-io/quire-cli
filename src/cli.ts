@@ -14,6 +14,7 @@ import { registerNotifyCommand } from "./commands/notify.js";
 import { registerOrgCommand } from "./commands/org.js";
 import { registerPartnerCommand } from "./commands/partner.js";
 import { registerProjectCommand } from "./commands/project.js";
+import { registerReminderCommand } from "./commands/reminder.js";
 import { registerResolveCommand } from "./commands/resolve.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerSublistCommand } from "./commands/sublist.js";
@@ -70,6 +71,7 @@ registerChatCommand(program);
 registerDocCommand(program);
 registerInsightCommand(program);
 registerDashboardCommand(program);
+registerReminderCommand(program);
 registerResolveCommand(program);
 registerColorsCommand(program);
 registerNotifyCommand(program);
@@ -87,11 +89,11 @@ Auth:
 Orgs / projects:
   quire org list               List your organizations
   quire org get <id>           Show one organization
-  quire org update <id>        Update name / description / followers
+  quire org update <id>        Update name / description / followers (--follower / --add-follower / --remove-follower)
   quire org limit <id>         Show API rate-limit usage for an organization
   quire project list           List projects you can see (or --org <id> to scope)
   quire project get <id>       Show one project
-  quire project update <id>    Update name / description / dates / archive / public / followers
+  quire project update <id>    Update name / description / dates / archive / public / followers (--follower / --add-follower / --remove-follower)
   quire project members <id>   List a project's members
   quire project export <id>    Export the project as CSV (default) or JSON (--format json [--output file])
 
@@ -99,15 +101,17 @@ Tasks (read):
   quire task list <project>    List tasks in a project
   quire task get <id>          Show task details (id = OID, slug/#N, or URL)
   quire task tree <id>         Render the recursive subtree (default depth 3)
-  quire task search <query>    Search tasks; scope with --project / --org / --folder
+  quire task search <query>    Search tasks; scope with --project / --org / --folder; filter with --assignee / --follower / --tag
   quire task subtasks <id>     List a task's direct subtasks
   quire task comments <id>     List a task's comments
   quire mine                   List tasks assigned to me; scope with --project / --inbox / --org / --all-orgs
 
 Tasks (write):
-  quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest)
+  quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest; --assignee / --follower)
   quire task subtask <parent> --name "..."   Shorthand for "task create --parent"
   quire task update <id>                     Update fields: --name / --status / --priority / --add-tag / etc.
+                                             Followers: --follower (full replace) / --add-follower / --remove-follower
+                                             Follower values: OID, ID, email, 'me', 'app', or 'inherit' (the parent task's followers)
   quire task complete <id> / uncomplete <id> Toggle status to 100 / 0
   quire task move <id> --to <id|root>        Re-parent within the same project
   quire task transfer <id> --to <project>    Cross-project transfer (--keep-tags / --keep-status / --invite)
@@ -161,7 +165,7 @@ Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
   quire tag update <oid>          Update tag --name / --color
   quire tag delete <oid>          Delete a tag (prompts unless --yes)
-  quire sublist create <project>      Create a sublist (--name / --description)
+  quire sublist create <project>      Create a sublist (--name / --description / --member / --members-admins-only)
   quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive)
   quire sublist add-task <oid> <task> Add a task to a sublist
   quire sublist remove-task <oid> <task>  Remove a task from a sublist
@@ -185,24 +189,40 @@ Comments (write):
   quire comment delete <oid>              Delete a comment (prompts unless --yes)
 
 Chats / docs / insights / dashboards (write):
-  quire chat create <project>             --name [--description / --partner / --follower]
+  quire chat create <project>             --name [--description / --partner / --follower / --member / --members-admins-only]
   quire chat update <oid>                 [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
   quire chat delete <oid>                 (prompts unless --yes)
   quire chat undo-remove <oid>
   quire chat comment add <chat-id>        --text [--pin]
-  quire doc create <project>              --name [--description / --follower]
+  quire doc create <project>              --name [--description / --follower / --member / --members-admins-only]
   quire doc update <oid>                  [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
   quire doc delete <oid>                  (prompts unless --yes)
   quire doc undo-remove <oid>
-  quire insight create <project>          --name [--id / --description / --icon-color / --image]
+  quire insight create <project>          --name [--id / --description / --icon-color / --image / --member / --members-admins-only]
   quire insight update <oid>              [--name / --description / --icon-color / --image / --archive / --unarchive]
   quire insight delete <oid>              (prompts unless --yes)
   quire insight undo-remove <oid>
   quire insight run <oid>                 Run an insight and print the aggregated rows ([--group-by member|section] [--status active|completed|all])
-  quire dashboard create <owner>          --name [--owner-type / --id / --description / --icon-color / --image / --partner / --start / --due]
+  quire dashboard create <owner>          --name [--owner-type / --id / --description / --icon-color / --image / --partner / --start / --due / --member]
   quire dashboard update <oid>            [--id / --name / --description / --icon-color / --image / --start / --due / --archive / --unarchive] ('null' clears a date)
   quire dashboard delete <oid>            (prompts unless --yes)
   quire dashboard undo-remove <oid>
+
+Reminders:
+  quire reminder list <owner>    List reminders ([--owner-type project|organization|folder|smart-folder|task]; '-' = your Inbox)
+                                 A project's list includes its tasks' reminders; ordered by OID, not fire time
+  quire reminder get <oid>       Show one reminder
+  quire reminder create <owner>  [--owner-type / --when / --lead / --name / --partner / --member / --recurrence-*]
+                                 --when is required unless the task already has a start or due date (that supplies the fire time)
+                                 --lead '<n>m' | '<n>d' | '<n>d@HH:mm', repeatable (max 30); omit for one notification at the fire time
+  quire reminder update <oid>    [--when / --lead / --name / --clear-recurrence / --recurrence-*] ('null' clears --when / --name)
+                                 Members and partner are create-only — recreate the reminder to change who can see it
+  quire reminder delete <oid>    Delete permanently — no trash, no undo (prompts unless --yes)
+
+Record visibility (create-only):
+  --member <user>                Restrict a sublist / doc / chat / insight / dashboard / reminder to these users; repeat for multiple
+  --members-admins-only          Restrict it to the owner's admins
+                                 Omit both for every member of the owner. Cannot be changed after creation.
 
 Generic undo:
   quire undo <kind> <oid>                 kind = task | chat | comment | dashboard | document | insight | sublist

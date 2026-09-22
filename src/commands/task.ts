@@ -16,6 +16,15 @@ import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveTaskOid } from "../util/task-id.js";
 import { resolveTextInput } from "../util/text-input.js";
 
+/**
+ * Shared help-text fragment for the follower flags. Quire's follower value
+ * grammar is wider than the assignee one: besides a user OID / ID / email it
+ * takes `me`, `app` (with the `app|team` / `app|team|channel` / `app|/path`
+ * hook-path forms), and the task-only `inherit`. See the Followers section of
+ * the api-client README.
+ */
+const FOLLOWER_VALUE_HINT = "OID, ID, email, 'me', 'app', or 'inherit'";
+
 const ATTACHMENT_FIELDS = [
   { label: "Name", get: (a: { name: string }) => a.name },
   { label: "URL", get: (a: { url: string }) => a.url },
@@ -105,6 +114,7 @@ interface SearchOpts {
   folder?: string;
   mine?: boolean;
   assignee?: string;
+  follower?: string;
   tag?: string;
   status?: string;
   priority?: string;
@@ -198,6 +208,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--folder <id>", "Search within one folder OID.")
     .option("--mine", "Restrict to tasks assigned to me.")
     .option("--assignee <user>", "Filter by assignee (OID, id, or email).")
+    .option("--follower <user>", "Filter by follower (OID, id, or email).")
     .option("--tag <tag>", "Filter by tag.")
     .option("--status <status>", "Filter: 'active' / 'completed' / numeric 0-100.")
     .option("--priority <priority>", "Filter: low / medium / high / urgent or -1 / 0 / 1 / 2.")
@@ -209,6 +220,7 @@ export function registerTaskCommand(program: Command): void {
         text: query,
         ...(cmdOpts.mine ? { mine: true } : {}),
         ...(cmdOpts.assignee ? { assignee: cmdOpts.assignee } : {}),
+        ...(cmdOpts.follower ? { follower: cmdOpts.follower } : {}),
         ...(cmdOpts.tag ? { tag: cmdOpts.tag } : {}),
         ...(cmdOpts.status ? { status: cmdOpts.status } : {}),
         ...(cmdOpts.priority ? { priority: cmdOpts.priority } : {}),
@@ -307,13 +319,15 @@ export function registerTaskCommand(program: Command): void {
     .option("--due <date>", "Due date (YYYY-MM-DD or ISO 8601)")
     .option("--start <date>", "Start date")
     .option("--assignee <user>", "Assignee (OID, id, or email); repeat for multiple", append, [] as string[])
+    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple`, append, [] as string[])
     .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
     .option("--parent <id>", "Create as a subtask of this parent task")
     .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
     .option("--position <pos>", "Used with --sibling: 'before' or 'after'"))
     .action(async (project: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
-      assignee?: string[]; tag?: string[]; parent?: string; sibling?: string; position?: string;
+      assignee?: string[]; follower?: string[]; tag?: string[];
+      parent?: string; sibling?: string; position?: string;
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -330,6 +344,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
+        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };
@@ -362,10 +377,11 @@ export function registerTaskCommand(program: Command): void {
     .option("--due <date>")
     .option("--start <date>")
     .option("--assignee <user>", "Repeat for multiple", append, [] as string[])
+    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple`, append, [] as string[])
     .option("--tag <tag>", "Repeat for multiple", append, [] as string[]))
     .action(async (parentId: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
-      assignee?: string[]; tag?: string[];
+      assignee?: string[]; follower?: string[]; tag?: string[];
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -378,6 +394,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
+        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       });
@@ -397,6 +414,9 @@ export function registerTaskCommand(program: Command): void {
     .option("--remove-tag <tag>", "Repeat for multiple", append, [] as string[])
     .option("--add-assignee <user>", "Repeat for multiple", append, [] as string[])
     .option("--remove-assignee <user>", "Repeat for multiple", append, [] as string[])
+    .option("--follower <user>", `Replace the full follower list (${FOLLOWER_VALUE_HINT}); repeat for multiple`, append, [] as string[])
+    .option("--add-follower <user>", `Add follower; repeat for multiple. 'inherit' pulls in the parent task's followers`, append, [] as string[])
+    .option("--remove-follower <user>", `Remove follower; repeat for multiple. 'inherit' drops the ones inherited from the parent`, append, [] as string[])
     .option("--add-successor <id>", "Repeat for multiple", append, [] as string[])
     .option("--remove-successor <id>", "Repeat for multiple", append, [] as string[])
     .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[]))
@@ -405,11 +425,17 @@ export function registerTaskCommand(program: Command): void {
       due?: string; start?: string;
       addTag?: string[]; removeTag?: string[];
       addAssignee?: string[]; removeAssignee?: string[];
+      follower?: string[]; addFollower?: string[]; removeFollower?: string[];
       addSuccessor?: string[]; removeSuccessor?: string[];
       customField?: string[];
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+
+      if ((cmdOpts.follower?.length ?? 0) > 0 && ((cmdOpts.addFollower?.length ?? 0) > 0 || (cmdOpts.removeFollower?.length ?? 0) > 0)) {
+        throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
+      }
+
       const oid = await resolveTaskOid(client, id);
 
       let status: number | undefined;
@@ -433,6 +459,9 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.removeTag?.length ?? 0) > 0 ? { removeTags: cmdOpts.removeTag } : {}),
         ...((cmdOpts.addAssignee?.length ?? 0) > 0 ? { addAssignees: cmdOpts.addAssignee } : {}),
         ...((cmdOpts.removeAssignee?.length ?? 0) > 0 ? { removeAssignees: cmdOpts.removeAssignee } : {}),
+        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        ...((cmdOpts.addFollower?.length ?? 0) > 0 ? { addFollowers: cmdOpts.addFollower } : {}),
+        ...((cmdOpts.removeFollower?.length ?? 0) > 0 ? { removeFollowers: cmdOpts.removeFollower } : {}),
         ...((cmdOpts.addSuccessor?.length ?? 0) > 0 ? { addSuccessors: cmdOpts.addSuccessor } : {}),
         ...((cmdOpts.removeSuccessor?.length ?? 0) > 0 ? { removeSuccessors: cmdOpts.removeSuccessor } : {}),
         ...((cmdOpts.customField?.length ?? 0) > 0 ? { customFields: parseCustomFields(cmdOpts.customField) } : {}),

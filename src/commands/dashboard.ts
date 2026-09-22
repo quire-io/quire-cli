@@ -6,6 +6,8 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
+import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTextInput } from "../util/text-input.js";
 
@@ -58,6 +60,7 @@ const DASHBOARD_FIELDS = [
   { label: "Start", get: (d: { start?: string }) => d.start },
   { label: "Due", get: (d: { due?: string }) => d.due },
   { label: "Archived at", get: (d: { archivedAt?: string }) => d.archivedAt },
+  { label: "Members", get: (d: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(d.members) },
   { label: "URL", get: (d: { url?: string }) => d.url },
 ];
 
@@ -108,7 +111,7 @@ export function registerDashboardCommand(program: Command): void {
       );
     });
 
-  dashboard
+  addMemberOptions(dashboard
     .command("create <owner>")
     .description("Create a dashboard on an owner (project by default).")
     .requiredOption("--name <name>", "Dashboard name (required)")
@@ -119,13 +122,17 @@ export function registerDashboardCommand(program: Command): void {
     .option("--image <url>", "Icon image URL")
     .option("--partner <oid>", "Partner OID, if this is a partner dashboard")
     .option("--start <date>", "Start date")
-    .option("--due <date>", "Due date")
+    .option("--due <date>", "Due date"))
     .action(async (owner: string, cmdOpts: {
       name: string; ownerType?: string; id?: string; description?: string;
       iconColor?: string; image?: string; partner?: string; start?: string; due?: string;
-    }) => {
+    } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const members = resolveMembers(cmdOpts);
+      if (members !== undefined && cmdOpts.partner !== undefined) {
+        throw new ValidationError("Cannot combine --member / --members-admins-only with --partner — Quire rejects the pair with 400.");
+      }
       const ownerType = parseOwnerType(cmdOpts.ownerType);
       const ownerOid = await resolveOwnerOid(client, ownerType, owner);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
@@ -139,6 +146,7 @@ export function registerDashboardCommand(program: Command): void {
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
+        ...(members !== undefined ? { members } : {}),
       });
       renderObject(d, root, { fields: DASHBOARD_FIELDS, toId: (d) => d.oid });
     });

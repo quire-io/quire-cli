@@ -6,6 +6,8 @@ import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
+import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
 import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
@@ -30,6 +32,7 @@ const INSIGHT_FIELDS = [
   { label: "OID", get: (i: { oid: string }) => i.oid },
   { label: "Description", get: (i: { descriptionText?: string }) => i.descriptionText },
   { label: "Icon color", get: (i: { iconColor?: string }) => i.iconColor },
+  { label: "Members", get: (i: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(i.members) },
   { label: "URL", get: (i: { url?: string }) => i.url },
 ];
 
@@ -64,19 +67,20 @@ export function registerInsightCommand(program: Command): void {
       renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
     });
 
-  insight
+  addMemberOptions(insight
     .command("create <project>")
     .description("Create an insight inside a project.")
     .requiredOption("--name <name>", "Insight name (required)")
     .option("--id <id>", "Caller-supplied id (must pass Quire's isValidId)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--icon-color <color>", "Color: name like 'red'/'blue' or 2-digit code")
-    .option("--image <url>", "Icon image URL")
+    .option("--image <url>", "Icon image URL"))
     .action(async (project: string, cmdOpts: {
       name: string; id?: string; description?: string; iconColor?: string; image?: string;
-    }) => {
+    } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const members = resolveMembers(cmdOpts);
       const projectOid = await client.resolveProjectOid(project);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const iconColor = cmdOpts.iconColor !== undefined ? normalizeInsightColor(cmdOpts.iconColor) : undefined;
@@ -86,6 +90,7 @@ export function registerInsightCommand(program: Command): void {
         ...(description !== undefined ? { description } : {}),
         ...(iconColor !== undefined ? { iconColor } : {}),
         ...(cmdOpts.image !== undefined ? { image: cmdOpts.image } : {}),
+        ...(members !== undefined ? { members } : {}),
       });
       renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
     });

@@ -25,6 +25,7 @@ export const TASK_GET_FIELDS: KeyValueField<QuireTask>[] = [
   { label: "Priority", get: (t) => t.priority?.name },
   { label: "Start", get: (t) => t.start },
   { label: "Due", get: (t) => t.due },
+  { label: "Followers", get: (t) => t.followers?.map((f) => f.name).join(", ") },
   { label: "Description", get: (t) => t.descriptionText },
   { label: "URL", get: (t) => t.url },
   { label: "Created at", get: (t) => t.createdAt },
