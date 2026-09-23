@@ -144,20 +144,36 @@ jobs:
 
       - name: Codesign + notarize (macOS)
         if: matrix.sign && steps.signing_check.outputs.do_sign == 'true'
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           BIN="dist-bin/${{ matrix.output }}"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+
+          # Resolve the signing identity by its SHA-1 rather than by name.
+          # `codesign -s` matches a name against the certificate's subject
+          # common name by CONTAINMENT (see codesign(1)), and that name is
+          # "Developer ID Application: <Org> (<TeamID>)" — the org sits
+          # between the two parts this workflow knows, so no string built
+          # from the team ID can ever match it. Forty hex digits are read as
+          # the certificate hash instead, with the subject name ignored.
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/Developer ID Application/ { print $2; exit }')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application identity in the build keychain. Check that APPLE_DEVELOPER_ID_CERT holds a Developer ID cert (an Apple Distribution cert is a different type and will not work)."
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+            exit 1
+          fi
 
           # Re-sign over the ad-hoc signature build-sea.mjs leaves behind.
           # `--options runtime` enables the hardened runtime, required
           # for notarization.
           codesign --force \
-            --sign "Developer ID Application: $APPLE_TEAM_ID" \
+            --sign "$IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
             --options runtime \
             --timestamp \
             "$BIN"
+
+          codesign --verify --strict --verbose=2 "$BIN"
 
           # notarytool needs a container — zip the bare binary.
           ZIP="$RUNNER_TEMP/${{ matrix.output }}.zip"
