@@ -32,6 +32,16 @@ npx @quire-io/quire-cli --help
 # https://github.com/quire-io/quire-cli/releases
 ```
 
+The macOS binaries on the Releases page are not yet Developer ID signed, so a browser
+download carries a quarantine flag and Gatekeeper blocks the first run. Clear it once:
+
+```bash
+xattr -d com.apple.quarantine ./quire-darwin-arm64
+```
+
+This applies only to binaries downloaded through a browser — npm and Homebrew installs
+are unaffected.
+
 ## Usage
 
 ```bash
