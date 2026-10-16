@@ -4,7 +4,7 @@ import type { QuireClient } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
-import { commentColumns, commentFields, lookupAuthors } from "../output/comments.js";
+import { COMMENT_COLUMNS, COMMENT_FIELDS } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import {
@@ -92,8 +92,7 @@ export function registerChatCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveChatOid(client, id);
       const comments = await client.listChatComments(oid);
-      const names = await lookupAuthors(client, comments, root);
-      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
+      renderList(comments, root, { columns: COMMENT_COLUMNS, toId: (c) => c.oid });
     });
 
   addPrivateOption(addMemberOptions(chat
@@ -220,7 +219,6 @@ export function registerChatCommand(program: Command): void {
         ...(cmdOpts.pin === true ? { pinned: true } : {}),
         ...(cmdOpts.asApp === true ? { asUser: true } : {}),
       });
-      const names = await lookupAuthors(client, [c], root);
-      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
+      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
     });
 }

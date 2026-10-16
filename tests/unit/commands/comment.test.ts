@@ -19,30 +19,28 @@ const mockedResolveTask = vi.mocked(resolveTaskOid);
 
 const alice = { oid: "u-alice", id: "alice", name: "Alice" };
 const bob = { oid: "u-bob", id: "bob", name: "Bob" };
+// A comment posted as the app carries the app as its author.
+const app = { oid: "ap|0agent0agent0", id: "ap|0app0app0app", name: "Build Bot" };
 
-// `createdBy` is the author's OID — a string, unlike the user objects in
-// `emojis[].users` (api-client 1.2.0).
 const comments = [
   {
     oid: "c1",
     createdAt: "2026-10-16T01:00:00Z",
-    createdBy: "u-alice",
+    createdBy: alice,
     descriptionText: "Looks good",
     emojis: [
       { emoji: "👍", users: [alice, bob] },
       { emoji: "🎉", users: [bob] },
     ],
   },
-  { oid: "c2", createdAt: "2026-10-16T02:00:00Z", createdBy: "u-alice", descriptionText: "Shipped" },
-  { oid: "c3", createdAt: "2026-10-16T03:00:00Z", createdBy: "u-gone", descriptionText: "Old note" },
-  { oid: "c4", createdAt: "2026-10-16T04:00:00Z", createdBy: "ap|0app0app0app", descriptionText: "Bot note" },
+  { oid: "c2", createdAt: "2026-10-16T02:00:00Z", createdBy: bob, descriptionText: "Shipped" },
+  { oid: "c3", createdAt: "2026-10-16T03:00:00Z", createdBy: app, descriptionText: "Bot note" },
 ];
 
 describe("quire comment", () => {
   let getTaskComments: ReturnType<typeof vi.fn>;
   let getComment: ReturnType<typeof vi.fn>;
   let addComment: ReturnType<typeof vi.fn>;
-  let getUser: ReturnType<typeof vi.fn>;
   let addCommentEmojis: ReturnType<typeof vi.fn>;
   let removeCommentEmojis: ReturnType<typeof vi.fn>;
 
@@ -50,15 +48,11 @@ describe("quire comment", () => {
     getTaskComments = vi.fn().mockResolvedValue(comments);
     getComment = vi.fn().mockResolvedValue(comments[0]);
     addComment = vi.fn().mockResolvedValue(comments[0]);
-    getUser = vi.fn(async (oid: string) => {
-      if (oid === "u-alice") return alice;
-      throw new Error("404");
-    });
     addCommentEmojis = vi.fn().mockResolvedValue(undefined);
     removeCommentEmojis = vi.fn().mockResolvedValue(undefined);
     mockedResolveTask.mockResolvedValue("t1");
     mockedFactory.mockReturnValue({
-      getTaskComments, getComment, addComment, getUser, addCommentEmojis, removeCommentEmojis,
+      getTaskComments, getComment, addComment, addCommentEmojis, removeCommentEmojis,
     } as never);
   });
 
@@ -73,34 +67,24 @@ describe("quire comment", () => {
   }
 
   describe("list", () => {
-    it("looks each author up once and shows reaction counts", async () => {
+    it("shows each author's name and the reaction counts", async () => {
       const out = captureStdout();
       await run(["comment", "list", "proj/#1"]);
-      expect(getUser).toHaveBeenCalledTimes(2);
-      expect(getUser).toHaveBeenCalledWith("u-alice");
-      expect(getUser).toHaveBeenCalledWith("u-gone");
       const lines = out.output().split("\n");
       expect(lines[0]).toMatch(/^WHEN\s+WHO\s+TEXT\s+REACTIONS\s+OID$/);
       expect(lines[1]).toMatch(/Alice\s+Looks good\s+👍2 🎉1\s+c1/);
+      expect(lines[2]).toMatch(/Bob\s+Shipped\s+c2/);
     });
 
-    it("falls back to the OID when the author can't be looked up", async () => {
+    it("shows a comment posted as the app under the app's name", async () => {
       const out = captureStdout();
       await run(["comment", "list", "proj/#1"]);
-      expect(out.output()).toMatch(/u-gone\s+Old note/);
+      expect(out.output()).toMatch(/Build Bot\s+Bot note/);
     });
 
-    it("shows a comment posted as the app as (app) without looking it up", async () => {
-      const out = captureStdout();
-      await run(["comment", "list", "proj/#1"]);
-      expect(out.output()).toMatch(/\(app\)\s+Bot note/);
-      expect(getUser).not.toHaveBeenCalledWith("ap|0app0app0app");
-    });
-
-    it("skips the lookups under --json, which prints the raw records", async () => {
+    it("prints the raw records under --json", async () => {
       const out = captureStdout();
       await run(["--json", "comment", "list", "proj/#1"]);
-      expect(getUser).not.toHaveBeenCalled();
       expect(JSON.parse(out.output())).toEqual(comments);
     });
   });
@@ -171,8 +155,8 @@ describe("quire chat comment add", () => {
   });
 
   it("maps --as-app to asUser", async () => {
-    const addChatComment = vi.fn().mockResolvedValue(comments[3]);
-    mockedFactory.mockReturnValue({ addChatComment, getUser: vi.fn() } as never);
+    const addChatComment = vi.fn().mockResolvedValue(comments[2]);
+    mockedFactory.mockReturnValue({ addChatComment } as never);
     const out = captureStdout();
     const program = makeRootProgram();
     registerChatCommand(program);
@@ -180,6 +164,6 @@ describe("quire chat comment add", () => {
       "node", "test", "chat", "comment", "add", "0chat0chat0chat0chat0001", "--text", "hi", "--as-app",
     ]);
     expect(addChatComment).toHaveBeenCalledWith("0chat0chat0chat0chat0001", { description: "hi", asUser: true });
-    expect(out.output()).toMatch(/Who\s+\(app\)/);
+    expect(out.output()).toMatch(/Who\s+Build Bot/);
   });
 });

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Follows the Oct 16 2026 server release through `@quire-io/api-client` 1.2.2.
+
+- **Fix: comment commands crashed** — `comment list` / `get` / `add` / `update`, `task comments`, `chat comments` and `chat comment add` failed with a `TypeError` unless run with `--json` or `--quiet`. The Oct 16 2026 server release returns a comment's `createdBy` as the `{oid, id, name}` user object the API doc gives, no longer the bare OID 1.1.0 was written against. The WHO column and the Who line read the author's name from it again, so the per-author user lookups 1.1.0 added are gone.
+    - A comment posted as the app shows the app's name instead of `(app)`.
+    - Under `--json`, `createdBy` of a comment, tag or partner is now that object, not an OID string; read `createdBy.oid` for the OID.
+- Bumps `@quire-io/api-client` to `^1.2.2`.
+
 ## 1.1.0 — 2026-10-16
 
 Covers the Sep 25 and Oct 15 2026 server releases through `@quire-io/api-client` 1.2.1. Additive under semver: the one flag removal, `dashboard --start` / `--due`, takes out flags Quire always rejected.

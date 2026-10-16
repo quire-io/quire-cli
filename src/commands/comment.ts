@@ -2,7 +2,7 @@ import { Command } from "commander";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
-import { commentColumns, commentFields, lookupAuthors } from "../output/comments.js";
+import { COMMENT_COLUMNS, COMMENT_FIELDS } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { resolveAttachInput } from "../util/attach-input.js";
@@ -28,8 +28,7 @@ export function registerCommentCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, taskId);
       const comments = await client.getTaskComments(oid);
-      const names = await lookupAuthors(client, comments, root);
-      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
+      renderList(comments, root, { columns: COMMENT_COLUMNS, toId: (c) => c.oid });
     });
 
   comment
@@ -39,8 +38,7 @@ export function registerCommentCommand(program: Command): void {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const c = await client.getComment(oid);
-      const names = await lookupAuthors(client, [c], root);
-      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
+      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
     });
 
   comment
@@ -58,8 +56,7 @@ export function registerCommentCommand(program: Command): void {
         ...(cmdOpts.pin === true ? { pinned: true } : {}),
         ...(cmdOpts.asApp === true ? { asUser: true } : {}),
       });
-      const names = await lookupAuthors(client, [c], root);
-      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
+      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
     });
 
   comment
@@ -86,8 +83,7 @@ export function registerCommentCommand(program: Command): void {
       }
 
       const c = await client.updateComment(oid, body);
-      const names = await lookupAuthors(client, [c], root);
-      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
+      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
     });
 
   comment

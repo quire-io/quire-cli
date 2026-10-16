@@ -5,7 +5,7 @@ import { evaluateTaskFormulaFields, loadProjectTasksForFormula, QureDuration } f
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { TASK_GET_FIELDS, TASK_LIST_COLUMNS } from "../output/columns.js";
-import { commentColumns, lookupAuthors } from "../output/comments.js";
+import { COMMENT_COLUMNS } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
@@ -289,8 +289,7 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
       const comments = await client.getTaskComments(oid);
-      const names = await lookupAuthors(client, comments, root);
-      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
+      renderList(comments, root, { columns: COMMENT_COLUMNS, toId: (c) => c.oid });
     });
 
   // -------- Write commands (Phase 5.1) --------
