@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Package metadata:** `homepage` points to the Quire CLI section of the API reference (`https://quire.io/dev/api/#quire-cli`) instead of the GitHub README, which stays linked as `repository`.
+- **Package metadata:** `homepage` points to the Quire CLI section of the API reference instead of the GitHub README, which stays linked as `repository`. The link carries `utm_source=npm&utm_medium=referral&utm_campaign=quire-cli` so GA4 can attribute the visits; on quire.io/dev/api/ the tag stays out of Quire's signup-source stats.
 
 ## 1.0.0 — 2026-09-22
 

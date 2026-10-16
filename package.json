@@ -45,7 +45,7 @@
     "type": "git",
     "url": "git+https://github.com/quire-io/quire-cli.git"
   },
-  "homepage": "https://quire.io/dev/api/#quire-cli",
+  "homepage": "https://quire.io/dev/api/?utm_source=npm&utm_medium=referral&utm_campaign=quire-cli#quire-cli",
   "bugs": {
     "url": "https://github.com/quire-io/quire-cli/issues"
   },
