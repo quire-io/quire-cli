@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Package metadata:** `homepage` points to the Quire CLI section of the API reference (`https://quire.io/dev/api/#quire-cli`) instead of the GitHub README, which stays linked as `repository`.
+
 ## 1.0.0 — 2026-09-22
 
 First stable release, cut alongside `@quire-io/api-client` 1.0.0. The command surface has been additive since 0.1.0 — no flag or output shape has been removed — so it is now committed to under semver: a breaking change to a command, flag or `--json` shape needs a major bump.
