@@ -5,7 +5,7 @@
 Every runnable `quire` command, with its flags. Generated from the commander tree in
 [`src/program.ts`](src/program.ts), so it cannot drift from what the CLI actually registers.
 
-Generated from 120 commands across 22 groups, with 315 flags.
+Generated from 122 commands across 22 groups, with 364 flags.
 
 Global flags apply to every command and are listed once at the end.
 
@@ -171,24 +171,38 @@ Add a custom-field definition. Use --extra for type-specific config (JSON-parsed
 | `--name <name>` | Field name (required) |
 | `--type <type>` | Field type: text\|number\|money\|date\|duration\|select\|checkbox\|user\|task\|hyperlink\|email\|formula\|file\|lookup |
 | `--hidden` | Hide the field by default |
-| `--private` | Mark as private (visible only to admins) |
+| `--private` | Hide the values from guests and from visitors of a public project or share link |
 | `--percent` | Format numeric values as percentage |
 | `--multiple` | Allow multiple values |
 | `--clear-on-dup` | Clear value when a task is duplicated |
+| `--view-member <user>` | Only these users can view the values (OID, ID, email, or 'me'); repeat for multiple. An admin not named sees the field but not its values. Makes the field private. |
+| `--view-members-admins-only` | Only the admins can view the values |
+| `--edit-member <user>` | Only these users can edit the values, in Quire and through the API (OID, ID, email, or 'me'); repeat for multiple |
+| `--edit-members-admins-only` | Only the admins can edit the values |
+| `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
 | `--extra <kv>` | key=value; repeat for type-specific config (e.g. --extra options='[{...}]') |
 
 ### `quire project field update <project> <field-name>`
 
-Update a custom-field definition. Use --rename for renaming (or `field rename` for the dedicated command).
+Update a custom-field definition. Use `field rename` to rename it.
 
 | Flag | Description |
 |---|---|
 | `--type <type>` | New type |
-| `--hidden` |  |
-| `--private` |  |
-| `--percent` |  |
-| `--multiple` |  |
-| `--clear-on-dup` |  |
+| `--hidden` | Hide the field by default |
+| `--private` | Hide the values from guests and from visitors of a public project or share link |
+| `--no-private` | Show the values to guests and visitors again (rejected while view members are set) |
+| `--percent` | Format numeric values as percentage |
+| `--multiple` | Allow multiple values |
+| `--clear-on-dup` | Clear value when a task is duplicated |
+| `--view-member <user>` | Only these users can view the values (OID, ID, email, or 'me'); repeat for multiple. An admin not named sees the field but not its values. Makes the field private. |
+| `--view-members-admins-only` | Only the admins can view the values |
+| `--view-members-anyone` | Lift the view restriction (the field stays private) |
+| `--edit-member <user>` | Only these users can edit the values, in Quire and through the API (OID, ID, email, or 'me'); repeat for multiple |
+| `--edit-members-admins-only` | Only the admins can edit the values |
+| `--edit-members-anyone` | Lift the edit restriction |
+| `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
+| `--no-locked` | Allow editing the values in Quire again |
 | `--extra <kv>` | key=value; repeat for type-specific config |
 
 ### `quire project field rename <project> <field-name>`
@@ -232,6 +246,7 @@ List tasks in a project. <project> = OID, slug, or URL.
 |---|---|
 | `--limit <n>` | Page size; positive integer or 'no' for unlimited. |
 | `--cursor <token>` | Cursor token from a previous page (Apr 2026 cursor pagination). |
+| `--status <status>` | Filter: 'active', 'completed', or one status value 0-100. |
 
 ### `quire task get <id>`
 
@@ -270,6 +285,7 @@ List a task's direct subtasks.
 |---|---|
 | `--limit <n>` | Page size. |
 | `--cursor <token>` | Cursor from a previous page. |
+| `--status <status>` | Filter: 'active', 'completed', or one status value 0-100. |
 
 ### `quire task comments <id>`
 
@@ -609,6 +625,7 @@ Create a sublist in a project.
 | `--description <text>` | Sublist description |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
 
 ### `quire sublist update <oid>`
 
@@ -622,6 +639,8 @@ Update a sublist's fields.
 | `--due <date>` |  |
 | `--archive` | Archive the sublist |
 | `--unarchive` | Unarchive the sublist |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
+| `--no-private` | Let guests and visitors see it again (rejected by Quire for a record with members or a partner). |
 
 ### `quire sublist add-task <sublist-oid> <task>`
 
@@ -690,6 +709,8 @@ Add a comment to a task. --text accepts '-' (stdin) or '@file' for long content.
 | Flag | Description |
 |---|---|
 | `--text <text>` | Comment text; use '-' for stdin or '@/path/to/file' to read from disk. |
+| `--pin` | Pin the comment as it is created. |
+| `--as-app` | Post as the app instead of as you. |
 
 ### `quire comment update <oid>`
 
@@ -700,6 +721,14 @@ Update a comment. Pass --text to change the body, --pin / --unpin to toggle pinn
 | `--text <text>` | New comment text; '-' for stdin or '@file' for a file. |
 | `--pin` | Pin the comment. |
 | `--unpin` | Unpin the comment. |
+
+### `quire comment add-emoji <oid> <emoji>`
+
+Add your reactions to a task or chat comment. <emoji> = the emoji itself or its shortcode (+1, tada, :heart:); repeat or comma-separate for several. Only the 20 emojis Quire's reaction picker offers are accepted, and one invalid emoji rejects the whole call. Adding a reaction already there is a no-op.
+
+### `quire comment remove-emoji <oid> <emoji>`
+
+Remove your reactions from a task or chat comment. <emoji> = the emoji itself or its shortcode; repeat or comma-separate for several. Removing a reaction that isn't there is a no-op.
 
 ### `quire comment attach <oid> <file>`
 
@@ -740,6 +769,7 @@ Create a chat in a project.
 | `--follower <user>` | Follower (OID, ID, or email); repeat for multiple |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
 
 ### `quire chat update <oid>`
 
@@ -754,6 +784,8 @@ Update a chat.
 | `--follower <user>` | Replace the full follower list; repeat for multiple |
 | `--add-follower <user>` | Add follower; repeat for multiple |
 | `--remove-follower <user>` | Remove follower; repeat for multiple |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
+| `--no-private` | Let guests and visitors see it again (rejected by Quire for a record with members or a partner). |
 
 ### `quire chat delete <oid>`
 
@@ -770,7 +802,8 @@ Post a comment to a chat. --text accepts '-' (stdin) or '@file'.
 | Flag | Description |
 |---|---|
 | `--text <text>` | Comment text; '-' for stdin or '@file' to read from disk. |
-| `--pin` | Pin the comment after creating it |
+| `--pin` | Pin the comment as it is created |
+| `--as-app` | Post as the app instead of as you |
 
 ## quire doc
 
@@ -793,6 +826,7 @@ Create a document in a project. --description accepts '-' (stdin) or '@file'.
 | `--follower <user>` | Follower (OID, ID, or email); repeat for multiple. Project-owned docs only. |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
 
 ### `quire doc update <oid>`
 
@@ -807,6 +841,8 @@ Update a document.
 | `--follower <user>` | Replace the full follower list; repeat for multiple. Project-owned docs only. |
 | `--add-follower <user>` | Add follower; repeat for multiple. Project-owned docs only. |
 | `--remove-follower <user>` | Remove follower; repeat for multiple. Project-owned docs only. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
+| `--no-private` | Let guests and visitors see it again (rejected by Quire for a record with members or a partner). |
 
 ### `quire doc delete <oid>`
 
@@ -818,27 +854,34 @@ Restore a deleted document.
 
 ## quire insight
 
-### `quire insight list <project>`
+### `quire insight list <owner>`
 
-List insights on a project. <project> = OID, slug, or URL.
+List insights on an owner. <owner> = OID, slug, or URL (projects / orgs); folders need an OID.
+
+| Flag | Description |
+|---|---|
+| `--owner-type <type>` | Owner type: project \| organization \| folder \| smart-folder (default: project) |
 
 ### `quire insight get <id>`
 
 Show insight details. <id> = insight OID.
 
-### `quire insight create <project>`
+### `quire insight create <owner>`
 
-Create an insight inside a project.
+Create an insight on an owner (project by default).
 
 | Flag | Description |
 |---|---|
 | `--name <name>` | Insight name (required) |
+| `--owner-type <type>` | Owner type: project \| organization \| folder \| smart-folder (default: project) |
 | `--id <id>` | Caller-supplied id (must pass Quire's isValidId) |
 | `--description <text>` | Description; '-' for stdin or '@file' for a file |
 | `--icon-color <color>` | Color: name like 'red'/'blue' or 2-digit code |
 | `--image <url>` | Icon image URL |
+| `--partner <oid>` | Partner OID, to share the insight with an external team |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
 
 ### `quire insight update <oid>`
 
@@ -852,6 +895,8 @@ Update an insight.
 | `--image <url>` |  |
 | `--archive` | Archive the insight |
 | `--unarchive` | Unarchive the insight |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
+| `--no-private` | Let guests and visitors see it again (rejected by Quire for a record with members or a partner). |
 
 ### `quire insight delete <oid>`
 
@@ -878,11 +923,16 @@ Add a custom-field to an insight. Insights only allow formula / lookup types.
 |---|---|
 | `--name <name>` | Field name (required) |
 | `--type <type>` | Field type (insights: formula \| lookup) |
-| `--hidden` |  |
-| `--private` |  |
-| `--percent` |  |
-| `--multiple` |  |
-| `--clear-on-dup` |  |
+| `--hidden` | Hide the field by default |
+| `--private` | Hide the values from guests and from visitors of a public project or share link |
+| `--percent` | Format numeric values as percentage |
+| `--multiple` | Allow multiple values |
+| `--clear-on-dup` | Clear value when a task is duplicated |
+| `--view-member <user>` | Only these users can view the values (OID, ID, email, or 'me'); repeat for multiple. An admin not named sees the field but not its values. Makes the field private. |
+| `--view-members-admins-only` | Only the admins can view the values |
+| `--edit-member <user>` | Only these users can edit the values, in Quire and through the API (OID, ID, email, or 'me'); repeat for multiple |
+| `--edit-members-admins-only` | Only the admins can edit the values |
+| `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
 | `--extra <kv>` | key=value; repeat for type-specific config |
 
 ### `quire insight field update <insight-oid> <field-name>`
@@ -892,11 +942,20 @@ Update a custom-field definition on an insight.
 | Flag | Description |
 |---|---|
 | `--type <type>` | New type |
-| `--hidden` |  |
-| `--private` |  |
-| `--percent` |  |
-| `--multiple` |  |
-| `--clear-on-dup` |  |
+| `--hidden` | Hide the field by default |
+| `--private` | Hide the values from guests and from visitors of a public project or share link |
+| `--no-private` | Show the values to guests and visitors again (rejected while view members are set) |
+| `--percent` | Format numeric values as percentage |
+| `--multiple` | Allow multiple values |
+| `--clear-on-dup` | Clear value when a task is duplicated |
+| `--view-member <user>` | Only these users can view the values (OID, ID, email, or 'me'); repeat for multiple. An admin not named sees the field but not its values. Makes the field private. |
+| `--view-members-admins-only` | Only the admins can view the values |
+| `--view-members-anyone` | Lift the view restriction (the field stays private) |
+| `--edit-member <user>` | Only these users can edit the values, in Quire and through the API (OID, ID, email, or 'me'); repeat for multiple |
+| `--edit-members-admins-only` | Only the admins can edit the values |
+| `--edit-members-anyone` | Lift the edit restriction |
+| `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
+| `--no-locked` | Allow editing the values in Quire again |
 | `--extra <kv>` | key=value; repeat |
 
 ### `quire insight field rename <insight-oid> <field-name>`
@@ -951,14 +1010,13 @@ Create a dashboard on an owner (project by default).
 | `--icon-color <color>` | Color: name like 'red'/'blue' or 2-digit code |
 | `--image <url>` | Icon image URL |
 | `--partner <oid>` | Partner OID, if this is a partner dashboard |
-| `--start <date>` | Start date |
-| `--due <date>` | Due date |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
 
 ### `quire dashboard update <oid>`
 
-Update a dashboard. Pass 'null' to --start / --due to clear the date.
+Update a dashboard.
 
 | Flag | Description |
 |---|---|
@@ -967,10 +1025,10 @@ Update a dashboard. Pass 'null' to --start / --due to clear the date.
 | `--description <text>` | New description ('-' = stdin, '@file' = file) |
 | `--icon-color <color>` |  |
 | `--image <url>` |  |
-| `--start <date>` | Start date or 'null' to clear |
-| `--due <date>` | Due date or 'null' to clear |
 | `--archive` | Archive the dashboard |
 | `--unarchive` | Unarchive the dashboard |
+| `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
+| `--no-private` | Let guests and visitors see it again (rejected by Quire for a record with members or a partner). |
 
 ### `quire dashboard delete <oid>`
 
@@ -991,6 +1049,8 @@ List reminders on an owner. A project's list includes the reminders on its tasks
 | `--owner-type <type>` | Owner type: project \| organization \| folder \| smart-folder \| task (default: project) |
 | `--limit <n>` | Page size; 1-1000 or 'no' for every reminder in one call. |
 | `--cursor <token>` | Cursor from the last item of a previous page. |
+| `--timing <timing>` | 'standalone' = the reminders firing at their own --when (no task, or a task with no dates); 'anchored' = those firing from their task's dates. |
+| `--status <status>` | 'active' = only the reminders with a notification still to come; 'all' (default) = every one. |
 
 ### `quire reminder get <oid>`
 

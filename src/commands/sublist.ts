@@ -4,7 +4,9 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
-import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import {
+  addMemberOptions, addPrivateOption, addPrivateToggle, formatMembers, formatPrivate, resolveMembers,
+} from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
@@ -17,6 +19,7 @@ const SUBLIST_FIELDS = [
   { label: "Start", get: (s: { start?: string }) => s.start },
   { label: "Due", get: (s: { due?: string }) => s.due },
   { label: "Members", get: (s: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(s.members) },
+  { label: "Private", get: (s: { private?: boolean }) => formatPrivate(s.private) },
   { label: "URL", get: (s: { url?: string }) => s.url },
 ];
 
@@ -51,12 +54,12 @@ export function registerSublistCommand(program: Command): void {
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 
-  addMemberOptions(sublist
+  addPrivateOption(addMemberOptions(sublist
     .command("create <project>")
     .description("Create a sublist in a project.")
     .requiredOption("--name <name>", "Sublist name (required)")
-    .option("--description <text>", "Sublist description"))
-    .action(async (project: string, cmdOpts: { name: string; description?: string } & MemberFlags) => {
+    .option("--description <text>", "Sublist description")))
+    .action(async (project: string, cmdOpts: { name: string; description?: string; private?: boolean } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const members = resolveMembers(cmdOpts);
@@ -65,11 +68,12 @@ export function registerSublistCommand(program: Command): void {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
         ...(members !== undefined ? { members } : {}),
+        ...(cmdOpts.private === true ? { private: true } : {}),
       });
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 
-  sublist
+  addPrivateToggle(sublist
     .command("update <oid>")
     .description("Update a sublist's fields.")
     .option("--name <name>")
@@ -77,10 +81,10 @@ export function registerSublistCommand(program: Command): void {
     .option("--start <date>")
     .option("--due <date>")
     .option("--archive", "Archive the sublist")
-    .option("--unarchive", "Unarchive the sublist")
+    .option("--unarchive", "Unarchive the sublist"))
     .action(async (oid: string, cmdOpts: {
       name?: string; description?: string; start?: string; due?: string;
-      archive?: boolean; unarchive?: boolean;
+      archive?: boolean; unarchive?: boolean; private?: boolean;
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -89,16 +93,17 @@ export function registerSublistCommand(program: Command): void {
         throw new ValidationError("Cannot combine --archive and --unarchive.");
       }
 
-      const body: { name?: string; description?: string; start?: string; due?: string; archived?: boolean } = {};
+      const body: { name?: string; description?: string; start?: string; due?: string; archived?: boolean; private?: boolean } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (cmdOpts.description !== undefined) body.description = cmdOpts.description;
       if (cmdOpts.start !== undefined) body.start = cmdOpts.start;
       if (cmdOpts.due !== undefined) body.due = cmdOpts.due;
       if (cmdOpts.archive === true) body.archived = true;
       if (cmdOpts.unarchive === true) body.archived = false;
+      if (cmdOpts.private !== undefined) body.private = cmdOpts.private;
 
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`sublist update` requires at least one of --name / --description / --start / --due / --archive / --unarchive.");
+        throw new ValidationError("`sublist update` requires at least one of --name / --description / --start / --due / --archive / --unarchive / --private / --no-private.");
       }
 
       const s = await client.updateSublist(oid, body);

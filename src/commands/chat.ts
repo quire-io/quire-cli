@@ -4,9 +4,12 @@ import type { QuireClient } from "@quire-io/api-client";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
+import { commentColumns, commentFields, lookupAuthors } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
-import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import {
+  addMemberOptions, addPrivateOption, addPrivateToggle, formatMembers, formatPrivate, resolveMembers,
+} from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTextInput } from "../util/text-input.js";
@@ -19,16 +22,8 @@ const CHAT_FIELDS = [
   { label: "OID", get: (c: { oid: string }) => c.oid },
   { label: "Description", get: (c: { descriptionText?: string }) => c.descriptionText },
   { label: "Members", get: (c: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(c.members) },
+  { label: "Private", get: (c: { private?: boolean }) => formatPrivate(c.private) },
   { label: "Followers", get: (c: { followers?: { name: string }[] }) => c.followers?.map((f) => f.name).join(", ") },
-  { label: "URL", get: (c: { url?: string }) => c.url },
-];
-
-const CHAT_COMMENT_FIELDS = [
-  { label: "OID", get: (c: { oid: string }) => c.oid },
-  { label: "When", get: (c: { createdAt?: string }) => c.createdAt },
-  { label: "Who", get: (c: { createdBy?: { name?: string } }) => c.createdBy?.name },
-  { label: "Pinned at", get: (c: { pinAt?: string }) => c.pinAt },
-  { label: "Text", get: (c: { descriptionText?: string }) => c.descriptionText },
   { label: "URL", get: (c: { url?: string }) => c.url },
 ];
 
@@ -97,31 +92,20 @@ export function registerChatCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveChatOid(client, id);
       const comments = await client.listChatComments(oid);
-      renderList(comments, root, {
-        columns: [
-          {
-            header: "WHEN",
-            get: (c) => (c as { createdAt?: string }).createdAt ?? "",
-          },
-          { header: "WHO", get: (c) => c.createdBy?.name ?? "" },
-          {
-            header: "TEXT",
-            get: (c) => (c.descriptionText ?? "").replace(/\s+/g, " ").trim(),
-          },
-          { header: "OID", get: (c) => c.oid },
-        ],
-        toId: (c) => c.oid,
-      });
+      const names = await lookupAuthors(client, comments, root);
+      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
     });
 
-  addMemberOptions(chat
+  addPrivateOption(addMemberOptions(chat
     .command("create <project>")
     .description("Create a chat in a project.")
     .requiredOption("--name <name>", "Chat name (required)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--partner <oid>", "Partner OID, if this is a partner chat")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[]))
-    .action(async (project: string, cmdOpts: { name: string; description?: string; partner?: string; follower?: string[] } & MemberFlags) => {
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[])))
+    .action(async (project: string, cmdOpts: {
+      name: string; description?: string; partner?: string; follower?: string[]; private?: boolean;
+    } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const members = resolveMembers(cmdOpts);
@@ -136,11 +120,12 @@ export function registerChatCommand(program: Command): void {
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
         ...(members !== undefined ? { members } : {}),
+        ...(cmdOpts.private === true ? { private: true } : {}),
       });
       renderObject(c, root, { fields: CHAT_FIELDS, toId: (c) => c.oid });
     });
 
-  chat
+  addPrivateToggle(chat
     .command("update <oid>")
     .description("Update a chat.")
     .option("--name <name>", "New name")
@@ -149,10 +134,10 @@ export function registerChatCommand(program: Command): void {
     .option("--unarchive", "Unarchive the chat")
     .option("--follower <user>", "Replace the full follower list; repeat for multiple", append, [] as string[])
     .option("--add-follower <user>", "Add follower; repeat for multiple", append, [] as string[])
-    .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[])
+    .option("--remove-follower <user>", "Remove follower; repeat for multiple", append, [] as string[]))
     .action(async (oid: string, cmdOpts: {
       name?: string; description?: string;
-      archive?: boolean; unarchive?: boolean;
+      archive?: boolean; unarchive?: boolean; private?: boolean;
       follower?: string[]; addFollower?: string[]; removeFollower?: string[];
     }) => {
       const root = program.opts<GlobalOpts>();
@@ -164,16 +149,20 @@ export function registerChatCommand(program: Command): void {
         throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
       }
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
-      const body: { name?: string; description?: string; archived?: boolean; followers?: string[]; addFollowers?: string[]; removeFollowers?: string[] } = {};
+      const body: {
+        name?: string; description?: string; archived?: boolean; private?: boolean;
+        followers?: string[]; addFollowers?: string[]; removeFollowers?: string[];
+      } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
       if (cmdOpts.archive === true) body.archived = true;
       if (cmdOpts.unarchive === true) body.archived = false;
+      if (cmdOpts.private !== undefined) body.private = cmdOpts.private;
       if ((cmdOpts.follower?.length ?? 0) > 0) body.followers = cmdOpts.follower;
       if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
       if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`chat update` requires at least one of --name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower.");
+        throw new ValidationError("`chat update` requires at least one of --name / --description / --archive / --unarchive / --private / --no-private / --follower / --add-follower / --remove-follower.");
       }
       const c = await client.updateChat(oid, body);
       renderObject(c, root, { fields: CHAT_FIELDS, toId: (c) => c.oid });
@@ -219,8 +208,9 @@ export function registerChatCommand(program: Command): void {
     .command("add <chat-id>")
     .description("Post a comment to a chat. --text accepts '-' (stdin) or '@file'.")
     .requiredOption("--text <text>", "Comment text; '-' for stdin or '@file' to read from disk.")
-    .option("--pin", "Pin the comment after creating it")
-    .action(async (chatId: string, cmdOpts: { text: string; pin?: boolean }) => {
+    .option("--pin", "Pin the comment as it is created")
+    .option("--as-app", "Post as the app instead of as you")
+    .action(async (chatId: string, cmdOpts: { text: string; pin?: boolean; asApp?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveChatOid(client, chatId);
@@ -228,7 +218,9 @@ export function registerChatCommand(program: Command): void {
       const c = await client.addChatComment(oid, {
         description,
         ...(cmdOpts.pin === true ? { pinned: true } : {}),
+        ...(cmdOpts.asApp === true ? { asUser: true } : {}),
       });
-      renderObject(c, root, { fields: CHAT_COMMENT_FIELDS, toId: (c) => c.oid });
+      const names = await lookupAuthors(client, [c], root);
+      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
     });
 }

@@ -81,7 +81,7 @@ describe("quire dashboard", () => {
     expect(out.output()).toContain("Sprint Board");
   });
 
-  it("update maps 'null' dates to null and --archive to archived:true", async () => {
+  it("update maps --archive to archived:true and --no-private to private:false", async () => {
     const updateDashboard = vi.fn().mockResolvedValue(dash);
     mockedFactory.mockReturnValue({ updateDashboard } as never);
 
@@ -91,16 +91,27 @@ describe("quire dashboard", () => {
     registerDashboardCommand(program);
     await program.parseAsync([
       "node", "test", "dashboard", "update", "0dash0dash0dash0dash0001",
-      "--start", "null",
-      "--due", "2026-12-31",
       "--archive",
+      "--no-private",
     ]);
 
     expect(updateDashboard).toHaveBeenCalledWith("0dash0dash0dash0dash0001", {
-      start: null,
-      due: "2026-12-31",
       archived: true,
+      private: false,
     });
+  });
+
+  // A dashboard has no dates: Quire rejects start / due with 400 and never
+  // returns them (api-client 1.2.1), so the flags are gone.
+  it("has no --start / --due on create or update", () => {
+    const program = makeRootProgram();
+    registerDashboardCommand(program);
+    const dashboard = program.commands.find((c) => c.name() === "dashboard");
+    for (const sub of ["create", "update"]) {
+      const flags = dashboard?.commands.find((c) => c.name() === sub)?.options.map((o) => o.long);
+      expect(flags).not.toContain("--start");
+      expect(flags).not.toContain("--due");
+    }
   });
 
   it("update with no change-flags fails validation", async () => {
@@ -114,7 +125,7 @@ describe("quire dashboard", () => {
     ).rejects.toThrow(/at least one change-flag/);
   });
 
-  it("create forwards owner, dates, and partner", async () => {
+  it("create forwards owner, partner and --private", async () => {
     const resolveProjectOid = vi.fn().mockResolvedValue("0proj0proj0proj0proj0001");
     const createDashboard = vi.fn().mockResolvedValue(dash);
     mockedFactory.mockReturnValue({ resolveProjectOid, createDashboard } as never);
@@ -126,16 +137,14 @@ describe("quire dashboard", () => {
     await program.parseAsync([
       "node", "test", "dashboard", "create", "my_project",
       "--name", "Sprint Board",
-      "--start", "2026-09-01",
-      "--due", "2026-09-30",
       "--partner", "0part0part0part0part0001",
+      "--private",
     ]);
 
     expect(createDashboard).toHaveBeenCalledWith("project", "0proj0proj0proj0proj0001", {
       name: "Sprint Board",
-      start: "2026-09-01",
-      due: "2026-09-30",
       partner: "0part0part0part0part0001",
+      private: true,
     });
   });
 });

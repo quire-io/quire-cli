@@ -70,4 +70,18 @@ describe("quire task get", () => {
       program.parseAsync(["node", "test", "task", "get", "#408"]),
     ).rejects.toMatchObject({ name: "ValidationError", exitCode: 3 });
   });
+
+  it("lists predecessors and successors by task number", async () => {
+    getTask.mockResolvedValue({
+      ...sampleTask,
+      predecessorRefs: [{ oid: "0a", id: 12 }, { oid: "0b", id: 15 }],
+      successorRefs: [{ oid: "0c", id: 410 }],
+    });
+    const { output } = captureStdout();
+    const program = makeRootProgram();
+    registerTaskCommand(program);
+    await program.parseAsync(["node", "test", "task", "get", "0task0task0task0task0123"]);
+    expect(output()).toMatch(/Predecessors\s+#12, #15/);
+    expect(output()).toMatch(/Successors\s+#410/);
+  });
 });

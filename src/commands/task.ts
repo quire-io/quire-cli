@@ -5,6 +5,7 @@ import { evaluateTaskFormulaFields, loadProjectTasksForFormula, QureDuration } f
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { TASK_GET_FIELDS, TASK_LIST_COLUMNS } from "../output/columns.js";
+import { commentColumns, lookupAuthors } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
@@ -102,6 +103,7 @@ function renderBulkResults(results: readonly unknown[], root: GlobalOpts): void 
 interface ListOpts {
   limit?: string;
   cursor?: string;
+  status?: string;
 }
 
 interface TreeOpts {
@@ -131,6 +133,20 @@ function parseLimit(input: string | undefined): number | "no" | undefined {
   return n;
 }
 
+// `task list` / `task subtasks --status`: filtered server-side before paging,
+// so a page still holds `--limit` tasks while that many match.
+const LIST_STATUS_HELP = "Filter: 'active', 'completed', or one status value 0-100.";
+
+function parseListStatus(input: string | undefined): "active" | "completed" | number | undefined {
+  if (input === undefined) return undefined;
+  if (input === "active" || input === "completed") return input;
+  const n = Number(input);
+  if (!/^\d+$/.test(input) || n > 100) {
+    throw new ValidationError(`--status must be 'active', 'completed', or an integer 0-100; got "${input}"`);
+  }
+  return n;
+}
+
 export function registerTaskCommand(program: Command): void {
   const task = program.command("task").description("Quire tasks.");
 
@@ -139,13 +155,16 @@ export function registerTaskCommand(program: Command): void {
     .description("List tasks in a project. <project> = OID, slug, or URL.")
     .option("--limit <n>", "Page size; positive integer or 'no' for unlimited.")
     .option("--cursor <token>", "Cursor token from a previous page (Apr 2026 cursor pagination).")
+    .option("--status <status>", LIST_STATUS_HELP)
     .action(async (project: string, cmdOpts: ListOpts) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const status = parseListStatus(cmdOpts.status);
       const oid = await client.resolveProjectOid(project);
       const tasks = await client.listTasks(oid, {
         limit: parseLimit(cmdOpts.limit),
         cursor: cmdOpts.cursor,
+        ...(status !== undefined ? { status } : {}),
       });
       renderList(tasks, root, { columns: TASK_LIST_COLUMNS, toId: (t) => t.oid });
     });
@@ -248,13 +267,16 @@ export function registerTaskCommand(program: Command): void {
     .description("List a task's direct subtasks.")
     .option("--limit <n>", "Page size.")
     .option("--cursor <token>", "Cursor from a previous page.")
+    .option("--status <status>", LIST_STATUS_HELP)
     .action(async (id: string, cmdOpts: ListOpts) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+      const status = parseListStatus(cmdOpts.status);
       const oid = await resolveTaskOid(client, id);
       const subs = await client.listSubtasks(oid, {
         limit: parseLimit(cmdOpts.limit),
         cursor: cmdOpts.cursor,
+        ...(status !== undefined ? { status } : {}),
       });
       renderList(subs, root, { columns: TASK_LIST_COLUMNS, toId: (t) => t.oid });
     });
@@ -267,21 +289,8 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, id);
       const comments = await client.getTaskComments(oid);
-      renderList(comments, root, {
-        columns: [
-          {
-            header: "WHEN",
-            get: (c) => (c as { createdAt?: string }).createdAt ?? "",
-          },
-          { header: "WHO", get: (c) => c.createdBy?.name ?? "" },
-          {
-            header: "TEXT",
-            get: (c) => (c.descriptionText ?? "").replace(/\s+/g, " ").trim(),
-          },
-          { header: "OID", get: (c) => c.oid },
-        ],
-        toId: (c) => c.oid,
-      });
+      const names = await lookupAuthors(client, comments, root);
+      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
     });
 
   // -------- Write commands (Phase 5.1) --------

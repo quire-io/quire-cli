@@ -12,7 +12,7 @@ const mockedFactory = vi.mocked(createQuireClient);
 
 describe("quire partner list", () => {
   const partners = [
-    { oid: "p1", name: "Acme Inc", color: 3 },
+    { oid: "p1", name: "Acme Inc", color: "37" },
     { oid: "p2", name: "Globex" },
   ];
   let resolveProjectOid: ReturnType<typeof vi.fn>;
@@ -51,7 +51,7 @@ describe("quire partner list", () => {
 });
 
 describe("quire partner get", () => {
-  const partner = { oid: "p1", name: "Acme Inc", color: 3 };
+  const partner = { oid: "p1", name: "Acme Inc", color: "37" };
   let getPartner: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -69,5 +69,13 @@ describe("quire partner get", () => {
     registerPartnerCommand(program);
     await program.parseAsync(["node", "test", "partner", "get", "p1"]);
     expect(getPartner).toHaveBeenCalledWith("p1");
+  });
+
+  it("renders the color as the palette code Quire returns", async () => {
+    const { output } = captureStdout();
+    const program = makeRootProgram();
+    registerPartnerCommand(program);
+    await program.parseAsync(["node", "test", "partner", "get", "p1"]);
+    expect(output()).toMatch(/Color\s+37/);
   });
 });

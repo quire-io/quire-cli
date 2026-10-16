@@ -6,7 +6,9 @@ import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
-import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import {
+  addMemberOptions, addPrivateOption, addPrivateToggle, formatMembers, formatPrivate, resolveMembers,
+} from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTextInput } from "../util/text-input.js";
@@ -20,6 +22,7 @@ const DOC_FIELDS = [
   { label: "Description", get: (d: { descriptionText?: string }) => d.descriptionText },
   { label: "Followers", get: (d: { followers?: { name: string }[] }) => d.followers?.map((f) => f.name).join(", ") },
   { label: "Members", get: (d: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(d.members) },
+  { label: "Private", get: (d: { private?: boolean }) => formatPrivate(d.private) },
   { label: "URL", get: (d: { url?: string }) => d.url },
 ];
 
@@ -80,13 +83,13 @@ export function registerDocCommand(program: Command): void {
       renderObject(d, root, { fields: DOC_FIELDS, toId: (d) => d.oid });
     });
 
-  addMemberOptions(doc
+  addPrivateOption(addMemberOptions(doc
     .command("create <project>")
     .description("Create a document in a project. --description accepts '-' (stdin) or '@file'.")
     .requiredOption("--name <name>", "Document name (required)")
     .option("--description <text>", "Document description; '-' for stdin or '@file' for a file")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only.", append, [] as string[]))
-    .action(async (project: string, cmdOpts: { name: string; description?: string; follower?: string[] } & MemberFlags) => {
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only.", append, [] as string[])))
+    .action(async (project: string, cmdOpts: { name: string; description?: string; follower?: string[]; private?: boolean } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const members = resolveMembers(cmdOpts);
@@ -97,11 +100,12 @@ export function registerDocCommand(program: Command): void {
         ...(description !== undefined ? { description } : {}),
         ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
         ...(members !== undefined ? { members } : {}),
+        ...(cmdOpts.private === true ? { private: true } : {}),
       });
       renderObject(d, root, { fields: DOC_FIELDS, toId: (d) => d.oid });
     });
 
-  doc
+  addPrivateToggle(doc
     .command("update <oid>")
     .description("Update a document.")
     .option("--name <name>", "New name")
@@ -110,9 +114,9 @@ export function registerDocCommand(program: Command): void {
     .option("--unarchive", "Unarchive the document")
     .option("--follower <user>", "Replace the full follower list; repeat for multiple. Project-owned docs only.", append, [] as string[])
     .option("--add-follower <user>", "Add follower; repeat for multiple. Project-owned docs only.", append, [] as string[])
-    .option("--remove-follower <user>", "Remove follower; repeat for multiple. Project-owned docs only.", append, [] as string[])
+    .option("--remove-follower <user>", "Remove follower; repeat for multiple. Project-owned docs only.", append, [] as string[]))
     .action(async (oid: string, cmdOpts: {
-      name?: string; description?: string; archive?: boolean; unarchive?: boolean;
+      name?: string; description?: string; archive?: boolean; unarchive?: boolean; private?: boolean;
       follower?: string[]; addFollower?: string[]; removeFollower?: string[];
     }) => {
       const root = program.opts<GlobalOpts>();
@@ -124,16 +128,20 @@ export function registerDocCommand(program: Command): void {
         throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
       }
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
-      const body: { name?: string; description?: string; archived?: boolean; followers?: string[]; addFollowers?: string[]; removeFollowers?: string[] } = {};
+      const body: {
+        name?: string; description?: string; archived?: boolean; private?: boolean;
+        followers?: string[]; addFollowers?: string[]; removeFollowers?: string[];
+      } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
       if (cmdOpts.archive === true) body.archived = true;
       if (cmdOpts.unarchive === true) body.archived = false;
+      if (cmdOpts.private !== undefined) body.private = cmdOpts.private;
       if ((cmdOpts.follower?.length ?? 0) > 0) body.followers = cmdOpts.follower;
       if ((cmdOpts.addFollower?.length ?? 0) > 0) body.addFollowers = cmdOpts.addFollower;
       if ((cmdOpts.removeFollower?.length ?? 0) > 0) body.removeFollowers = cmdOpts.removeFollower;
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`doc update` requires at least one of --name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower.");
+        throw new ValidationError("`doc update` requires at least one of --name / --description / --archive / --unarchive / --private / --no-private / --follower / --add-follower / --remove-follower.");
       }
       const d = await client.updateDocument(oid, body);
       renderObject(d, root, { fields: DOC_FIELDS, toId: (d) => d.oid });

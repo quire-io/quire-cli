@@ -96,11 +96,11 @@ Orgs / projects:
   quire project export <id>    Export the project as CSV (default) or JSON (--format json [--output file])
 
 Tasks (read):
-  quire task list <project>    List tasks in a project
+  quire task list <project>    List tasks in a project ([--status active|completed|0-100])
   quire task get <id>          Show task details (id = OID, slug/#N, or URL)
   quire task tree <id>         Render the recursive subtree (default depth 3)
   quire task search <query>    Search tasks; scope with --project / --org / --folder; filter with --assignee / --follower / --tag
-  quire task subtasks <id>     List a task's direct subtasks
+  quire task subtasks <id>     List a task's direct subtasks ([--status active|completed|0-100])
   quire task comments <id>     List a task's comments
   quire mine                   List tasks assigned to me; scope with --project / --inbox / --org / --all-orgs
 
@@ -145,7 +145,9 @@ Project metadata (approval categories):
 
 Project metadata (custom-field definitions):
   quire project field add <project>          --name --type [--hidden / --private / --percent / --multiple / --clear-on-dup / --extra k=v]
-  quire project field update <project> <name>  [--type / --hidden / --private / --percent / --multiple / --extra k=v]
+  quire project field update <project> <name>  [--type / --hidden / --private / --no-private / --percent / --multiple / --extra k=v]
+                                             Access: --view-member / --view-members-admins-only, --edit-member / --edit-members-admins-only,
+                                             --locked; update also takes --view-members-anyone / --edit-members-anyone / --no-locked
   quire project field rename <project> <name> --new-name ...
   quire project field move <project> <name>   [--before <name>] [--to-end]
   quire project field remove <project> <name> (prompts unless --yes)
@@ -163,8 +165,8 @@ Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
   quire tag update <oid>          Update tag --name / --color
   quire tag delete <oid>          Delete a tag (prompts unless --yes)
-  quire sublist create <project>      Create a sublist (--name / --description / --member / --members-admins-only)
-  quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive)
+  quire sublist create <project>      Create a sublist (--name / --description / --member / --members-admins-only / --private)
+  quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive / --private / --no-private)
   quire sublist add-task <oid> <task> Add a task to a sublist
   quire sublist remove-task <oid> <task>  Remove a task from a sublist
   quire sublist delete <oid>          Delete a sublist (prompts unless --yes)
@@ -177,37 +179,40 @@ Comments / chats / docs / insights / dashboards (read):
   quire comment list <task>    List comments on a task (alias for "quire task comments"; also: 'comment get <oid>')
   quire chat list <project>    List chats / chat get <id> / chat comments <id>
   quire doc list <project>     List documents / doc get <id>
-  quire insight list <project> List insights / insight get <id>
+  quire insight list <owner>   List insights / insight get <id> ([--owner-type project|organization|folder|smart-folder])
   quire dashboard list <owner> List dashboards / dashboard get <id> ([--owner-type project|organization|folder|smart-folder])
 
 Comments (write):
-  quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file)
+  quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file) [--pin / --as-app]
   quire comment update <oid>              Update --text and/or --pin / --unpin
+  quire comment add-emoji <oid> <emoji...>     Add your reactions to a task or chat comment (emoji or shortcode: +1, tada, :heart:)
+  quire comment remove-emoji <oid> <emoji...>  Remove your reactions
   quire comment attach <oid> <file>       Attach a file to a comment ('-' = stdin; --filename / --content-type optional)
   quire comment delete <oid>              Delete a comment (prompts unless --yes)
 
 Chats / docs / insights / dashboards (write):
-  quire chat create <project>             --name [--description / --partner / --follower / --member / --members-admins-only]
-  quire chat update <oid>                 [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
+  quire chat create <project>             --name [--description / --partner / --follower / --member / --members-admins-only / --private]
+  quire chat update <oid>                 [--name / --description / --archive / --unarchive / --private / --no-private / --follower / --add-follower / --remove-follower]
   quire chat delete <oid>                 (prompts unless --yes)
   quire chat undo-remove <oid>
-  quire chat comment add <chat-id>        --text [--pin]
-  quire doc create <project>              --name [--description / --follower / --member / --members-admins-only]
-  quire doc update <oid>                  [--name / --description / --archive / --unarchive / --follower / --add-follower / --remove-follower]
+  quire chat comment add <chat-id>        --text [--pin / --as-app]
+  quire doc create <project>              --name [--description / --follower / --member / --members-admins-only / --private]
+  quire doc update <oid>                  [--name / --description / --archive / --unarchive / --private / --no-private / --follower / --add-follower / --remove-follower]
   quire doc delete <oid>                  (prompts unless --yes)
   quire doc undo-remove <oid>
-  quire insight create <project>          --name [--id / --description / --icon-color / --image / --member / --members-admins-only]
-  quire insight update <oid>              [--name / --description / --icon-color / --image / --archive / --unarchive]
+  quire insight create <owner>            --name [--owner-type / --id / --description / --icon-color / --image / --partner / --member / --private]
+  quire insight update <oid>              [--name / --description / --icon-color / --image / --archive / --unarchive / --private / --no-private]
   quire insight delete <oid>              (prompts unless --yes)
   quire insight undo-remove <oid>
   quire insight run <oid>                 Run an insight and print the aggregated rows ([--group-by member|section] [--status active|completed|all])
-  quire dashboard create <owner>          --name [--owner-type / --id / --description / --icon-color / --image / --partner / --start / --due / --member]
-  quire dashboard update <oid>            [--id / --name / --description / --icon-color / --image / --start / --due / --archive / --unarchive] ('null' clears a date)
+  quire dashboard create <owner>          --name [--owner-type / --id / --description / --icon-color / --image / --partner / --member / --private]
+  quire dashboard update <oid>            [--id / --name / --description / --icon-color / --image / --archive / --unarchive / --private / --no-private]
   quire dashboard delete <oid>            (prompts unless --yes)
   quire dashboard undo-remove <oid>
 
 Reminders:
   quire reminder list <owner>    List reminders ([--owner-type project|organization|folder|smart-folder|task]; '-' = your Inbox)
+                                 Filter with --timing standalone|anchored and --status active|all
                                  A project's list includes its tasks' reminders; ordered by OID, not fire time
   quire reminder get <oid>       Show one reminder
   quire reminder create <owner>  [--owner-type / --when / --lead / --name / --partner / --member / --recurrence-*]
@@ -217,10 +222,12 @@ Reminders:
                                  Members and partner are create-only — recreate the reminder to change who can see it
   quire reminder delete <oid>    Delete permanently — no trash, no undo (prompts unless --yes)
 
-Record visibility (create-only):
+Record visibility:
   --member <user>                Restrict a sublist / doc / chat / insight / dashboard / reminder to these users; repeat for multiple
   --members-admins-only          Restrict it to the owner's admins
-                                 Omit both for every member of the owner. Cannot be changed after creation.
+                                 Omit both for every member of the owner. Create-only: cannot be changed after creation.
+  --private / --no-private       Hide a sublist / doc / chat / insight / dashboard from guests and from visitors of a public
+                                 project or share link. Only for one visible to every member; can be changed with update.
 
 Generic undo:
   quire undo <kind> <oid>                 kind = task | chat | comment | dashboard | document | insight | sublist

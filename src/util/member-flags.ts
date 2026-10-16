@@ -67,3 +67,31 @@ export function formatMembers(members: ({ name?: string; oid: string } | string)
   if (members.length === 0) return "(admins only)";
   return members.map((m) => (typeof m === "string" ? m : (m.name ?? m.oid))).join(", ");
 }
+
+/*
+ * `private` on the same five records (Oct 15 2026): when true, guests and the
+ * visitors of a public project or of a share link don't see the record. It is
+ * a choice only while the record is visible to every member — one with
+ * `members` or `partner` set is always hidden from them, so `true` is a no-op
+ * there and Quire rejects `false` with 400. Unlike `members` it can be
+ * changed after creation.
+ */
+const PRIVATE_HELP = "Hide from guests and from visitors of a public project or share link (only when visible to every member).";
+
+/** Adds `--private` to a `create` command. */
+export function addPrivateOption(cmd: Command): Command {
+  return cmd.option("--private", PRIVATE_HELP);
+}
+
+/** Adds `--private` / `--no-private` to an `update` command; omit both to leave it unchanged. */
+export function addPrivateToggle(cmd: Command): Command {
+  return cmd
+    .option("--private", PRIVATE_HELP)
+    .option("--no-private", "Let guests and visitors see it again (rejected by Quire for a record with members or a partner).");
+}
+
+/** Quire returns `private` only for a record visible to every member. */
+export function formatPrivate(value: boolean | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return value ? "yes" : "no";
+}

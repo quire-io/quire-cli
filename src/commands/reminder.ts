@@ -89,6 +89,19 @@ function parseLimit(input: string): number | "no" {
   return n;
 }
 
+const TIMINGS = ["standalone", "anchored"] as const;
+const STATUSES = ["active", "all"] as const;
+
+function parseChoice<const T extends readonly string[]>(
+  flag: string, input: string | undefined, choices: T,
+): T[number] | undefined {
+  if (input === undefined) return undefined;
+  if (!(choices as readonly string[]).includes(input)) {
+    throw new ValidationError(`${flag} must be one of ${choices.join(", ")}; got "${input}".`);
+  }
+  return input as T[number];
+}
+
 export function registerReminderCommand(program: Command): void {
   const reminder = program
     .command("reminder")
@@ -102,14 +115,28 @@ export function registerReminderCommand(program: Command): void {
     .option("--owner-type <type>", `Owner type: ${OWNER_TYPES.join(" | ")} (default: project)`)
     .option("--limit <n>", "Page size; 1-1000 or 'no' for every reminder in one call.")
     .option("--cursor <token>", "Cursor from the last item of a previous page.")
-    .action(async (owner: string, cmdOpts: { ownerType?: string; limit?: string; cursor?: string }) => {
+    .option(
+      "--timing <timing>",
+      "'standalone' = the reminders firing at their own --when (no task, or a task with no dates); 'anchored' = those firing from their task's dates.",
+    )
+    .option(
+      "--status <status>",
+      "'active' = only the reminders with a notification still to come; 'all' (default) = every one.",
+    )
+    .action(async (owner: string, cmdOpts: {
+      ownerType?: string; limit?: string; cursor?: string; timing?: string; status?: string;
+    }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const ownerType = parseOwnerType(cmdOpts.ownerType);
+      const timing = parseChoice("--timing", cmdOpts.timing, TIMINGS);
+      const status = parseChoice("--status", cmdOpts.status, STATUSES);
       const ownerOid = await resolveOwnerOid(client, ownerType, owner);
       const reminders = await client.listReminders(ownerType, ownerOid, {
         ...(cmdOpts.limit !== undefined ? { limit: parseLimit(cmdOpts.limit) } : {}),
         ...(cmdOpts.cursor !== undefined ? { cursor: cmdOpts.cursor } : {}),
+        ...(timing !== undefined ? { timing } : {}),
+        ...(status !== undefined ? { status } : {}),
       });
       // Quire orders these by OID — stable, but not chronological. Say so
       // rather than letting the reader assume the top row fires next.

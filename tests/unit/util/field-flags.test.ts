@@ -14,11 +14,10 @@ describe("buildFieldBody", () => {
     });
   });
 
-  it("only includes boolean flags when set to true (not just defined)", () => {
+  it("only includes the one-way boolean flags when set to true (not just defined)", () => {
     expect(
       buildFieldBody({
         hidden: false,
-        private: false,
         percent: false,
         multiple: false,
         clearOnDup: false,
@@ -38,6 +37,43 @@ describe("buildFieldBody", () => {
       percent: true,
       multiple: true,
       clearOnDup: true,
+    });
+  });
+
+  it("sends private and locked as given, so update's --no-private / --no-locked clear them", () => {
+    expect(buildFieldBody({ private: false, locked: false })).toEqual({ private: false, locked: false });
+    expect(buildFieldBody({ locked: true })).toEqual({ locked: true });
+  });
+
+  it("maps the view / edit member flags to a list, [] or null", () => {
+    expect(buildFieldBody({ viewMember: ["me", "a@x.io"], editMembersAdminsOnly: true })).toEqual({
+      viewMembers: ["me", "a@x.io"],
+      editMembers: [],
+    });
+    expect(buildFieldBody({ viewMembersAnyone: true, editMembersAnyone: true })).toEqual({
+      viewMembers: null,
+      editMembers: null,
+    });
+    expect(buildFieldBody({ viewMember: [], editMember: [] })).toEqual({});
+  });
+
+  it("rejects more than one of a list's three forms", () => {
+    expect(() => buildFieldBody({ viewMember: ["me"], viewMembersAdminsOnly: true })).toThrowError(
+      /only one of --view-member/,
+    );
+    expect(() => buildFieldBody({ editMembersAdminsOnly: true, editMembersAnyone: true })).toThrowError(
+      /only one of --edit-member/,
+    );
+  });
+
+  it("rejects --no-private with view members, which Quire 400s on", () => {
+    expect(() => buildFieldBody({ private: false, viewMembersAdminsOnly: true })).toThrowError(
+      /Cannot combine --no-private/,
+    );
+    // Lifting the restriction is fine: the field stays private until told otherwise.
+    expect(buildFieldBody({ private: false, viewMembersAnyone: true })).toEqual({
+      private: false,
+      viewMembers: null,
     });
   });
 

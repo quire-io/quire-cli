@@ -17,6 +17,12 @@ export const TASK_LIST_COLUMNS: TableColumn<QuireTask>[] = [
   { header: "OID", get: (t) => t.oid },
 ];
 
+// The `{oid, id}` companions of `predecessors` / `successors` (api-client 1.2.0).
+function formatTaskRefs(refs: { id: number }[] | undefined): string | undefined {
+  if (refs === undefined || refs.length === 0) return undefined;
+  return refs.map((r) => `#${String(r.id)}`).join(", ");
+}
+
 export const TASK_GET_FIELDS: KeyValueField<QuireTask>[] = [
   { label: "Name", get: (t) => t.nameText ?? t.name },
   { label: "ID", get: (t) => `#${t.id}` },
@@ -25,6 +31,8 @@ export const TASK_GET_FIELDS: KeyValueField<QuireTask>[] = [
   { label: "Priority", get: (t) => t.priority?.name },
   { label: "Start", get: (t) => t.start },
   { label: "Due", get: (t) => t.due },
+  { label: "Predecessors", get: (t) => formatTaskRefs(t.predecessorRefs) },
+  { label: "Successors", get: (t) => formatTaskRefs(t.successorRefs) },
   { label: "Followers", get: (t) => t.followers?.map((f) => f.name).join(", ") },
   { label: "Description", get: (t) => t.descriptionText },
   { label: "URL", get: (t) => t.url },

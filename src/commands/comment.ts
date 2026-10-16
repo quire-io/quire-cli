@@ -2,21 +2,13 @@ import { Command } from "commander";
 
 import { ValidationError } from "../errors.js";
 import type { GlobalOpts } from "../options.js";
+import { commentColumns, commentFields, lookupAuthors } from "../output/comments.js";
 import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { resolveAttachInput } from "../util/attach-input.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
 import { resolveTextInput } from "../util/text-input.js";
-
-const COMMENT_FIELDS = [
-  { label: "OID", get: (c: { oid: string }) => c.oid },
-  { label: "When", get: (c: { createdAt?: string }) => c.createdAt },
-  { label: "Who", get: (c: { createdBy?: { name?: string } }) => c.createdBy?.name },
-  { label: "Pinned at", get: (c: { pinAt?: string }) => c.pinAt },
-  { label: "Text", get: (c: { descriptionText?: string }) => c.descriptionText },
-  { label: "URL", get: (c: { url?: string }) => c.url },
-];
 
 const ATTACHMENT_FIELDS = [
   { label: "Name", get: (a: { name: string }) => a.name },
@@ -36,21 +28,8 @@ export function registerCommentCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, taskId);
       const comments = await client.getTaskComments(oid);
-      renderList(comments, root, {
-        columns: [
-          {
-            header: "WHEN",
-            get: (c) => (c as { createdAt?: string }).createdAt ?? "",
-          },
-          { header: "WHO", get: (c) => c.createdBy?.name ?? "" },
-          {
-            header: "TEXT",
-            get: (c) => (c.descriptionText ?? "").replace(/\s+/g, " ").trim(),
-          },
-          { header: "OID", get: (c) => c.oid },
-        ],
-        toId: (c) => c.oid,
-      });
+      const names = await lookupAuthors(client, comments, root);
+      renderList(comments, root, { columns: commentColumns(names), toId: (c) => c.oid });
     });
 
   comment
@@ -60,20 +39,27 @@ export function registerCommentCommand(program: Command): void {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const c = await client.getComment(oid);
-      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
+      const names = await lookupAuthors(client, [c], root);
+      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
     });
 
   comment
     .command("add <task-id>")
     .description("Add a comment to a task. --text accepts '-' (stdin) or '@file' for long content.")
     .requiredOption("--text <text>", "Comment text; use '-' for stdin or '@/path/to/file' to read from disk.")
-    .action(async (taskId: string, cmdOpts: { text: string }) => {
+    .option("--pin", "Pin the comment as it is created.")
+    .option("--as-app", "Post as the app instead of as you.")
+    .action(async (taskId: string, cmdOpts: { text: string; pin?: boolean; asApp?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const oid = await resolveTaskOid(client, taskId);
       const text = await resolveTextInput(cmdOpts.text);
-      const c = await client.addComment(oid, text);
-      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
+      const c = await client.addComment(oid, text, {
+        ...(cmdOpts.pin === true ? { pinned: true } : {}),
+        ...(cmdOpts.asApp === true ? { asUser: true } : {}),
+      });
+      const names = await lookupAuthors(client, [c], root);
+      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
     });
 
   comment
@@ -100,7 +86,37 @@ export function registerCommentCommand(program: Command): void {
       }
 
       const c = await client.updateComment(oid, body);
-      renderObject(c, root, { fields: COMMENT_FIELDS, toId: (c) => c.oid });
+      const names = await lookupAuthors(client, [c], root);
+      renderObject(c, root, { fields: commentFields(names), toId: (c) => c.oid });
+    });
+
+  comment
+    .command("add-emoji <oid> <emoji...>")
+    .description(
+      "Add your reactions to a task or chat comment. <emoji> = the emoji itself or its shortcode (+1, tada, :heart:); " +
+        "repeat or comma-separate for several. Only the 20 emojis Quire's reaction picker offers are accepted, " +
+        "and one invalid emoji rejects the whole call. Adding a reaction already there is a no-op.",
+    )
+    .action(async (oid: string, emojis: string[]) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const list = splitEmojis(emojis);
+      await client.addCommentEmojis(oid, list);
+      reportEmojis(root, oid, list, "added");
+    });
+
+  comment
+    .command("remove-emoji <oid> <emoji...>")
+    .description(
+      "Remove your reactions from a task or chat comment. <emoji> = the emoji itself or its shortcode; " +
+        "repeat or comma-separate for several. Removing a reaction that isn't there is a no-op.",
+    )
+    .action(async (oid: string, emojis: string[]) => {
+      const root = program.opts<GlobalOpts>();
+      const client = createQuireClient({ profile: root.profile });
+      const list = splitEmojis(emojis);
+      await client.removeCommentEmojis(oid, list);
+      reportEmojis(root, oid, list, "removed");
     });
 
   comment
@@ -138,4 +154,27 @@ export function registerCommentCommand(program: Command): void {
         process.stderr.write(`Deleted comment ${oid}.\n`);
       }
     });
+}
+
+/**
+ * `👍 tada` and `👍,tada` both work: the API itself takes a comma-separated
+ * list, and no emoji or shortcode contains a comma.
+ */
+function splitEmojis(args: readonly string[]): string[] {
+  const list = args.flatMap((a) => a.split(",")).map((e) => e.trim()).filter((e) => e !== "");
+  if (list.length === 0) throw new ValidationError("Give at least one emoji.");
+  return list;
+}
+
+// Both endpoints answer 204 with no body, so there is no comment to render:
+// report what was sent, the way `delete` does. `comment get` shows the result.
+function reportEmojis(root: GlobalOpts, oid: string, emojis: readonly string[], verb: "added" | "removed"): void {
+  if (root.json === true) {
+    process.stdout.write(`${JSON.stringify({ oid, [verb]: emojis })}\n`);
+  } else if (root.quiet === true) {
+    process.stdout.write(`${oid}\n`);
+  } else {
+    const where = verb === "added" ? "to" : "from";
+    process.stderr.write(`${verb === "added" ? "Added" : "Removed"} ${emojis.join(" ")} ${where} comment ${oid}.\n`);
+  }
 }

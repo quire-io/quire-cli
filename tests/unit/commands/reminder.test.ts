@@ -153,6 +153,24 @@ describe("quire reminder", () => {
       expect(listReminders).toHaveBeenCalledWith("project", "p1", { limit: "no" });
     });
 
+    it("forwards the timing and status filters", async () => {
+      await run(["reminder", "list", "alpha", "--timing", "anchored", "--status", "active"]);
+      expect(listReminders).toHaveBeenCalledWith("project", "p1", { timing: "anchored", status: "active" });
+    });
+
+    it("rejects an unknown timing before any request", async () => {
+      await expect(run(["reminder", "list", "alpha", "--timing", "later"])).rejects.toThrowError(
+        /--timing must be one of standalone, anchored/,
+      );
+      expect(resolveProjectOid).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unknown status", async () => {
+      await expect(run(["reminder", "list", "alpha", "--status", "done"])).rejects.toThrowError(
+        /--status must be one of active, all/,
+      );
+    });
+
     it("rejects a limit outside Quire's 1-1000 range", async () => {
       await expect(run(["reminder", "list", "alpha", "--limit", "1001"])).rejects.toThrowError(
         /--limit must be an integer 1-1000/,

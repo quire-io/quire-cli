@@ -7,7 +7,7 @@ import { createQuireClient } from "../quire-client.js";
 const PARTNER_FIELDS = [
   { label: "Name", get: (p: { name: string }) => p.name },
   { label: "OID", get: (p: { oid: string }) => p.oid },
-  { label: "Color", get: (p: { color?: number }) => p.color === undefined ? undefined : String(p.color) },
+  { label: "Color", get: (p: { color?: string }) => p.color },
 ];
 
 export function registerPartnerCommand(program: Command): void {

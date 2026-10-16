@@ -6,12 +6,15 @@ import type { GlobalOpts } from "../options.js";
 import { renderList, renderObject } from "../output/render.js";
 import { printTable } from "../output/table.js";
 import { createQuireClient } from "../quire-client.js";
-import { addMemberOptions, formatMembers, resolveMembers } from "../util/member-flags.js";
+import {
+  addMemberOptions, addPrivateOption, addPrivateToggle, formatMembers, formatPrivate, resolveMembers,
+} from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
-import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
+import { addFieldFlagOptions, buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
 import { resolveTextInput } from "../util/text-input.js";
+import { OWNER_TYPE_HELP, parseOwnerType, resolveOwnerOid } from "../util/work-owner.js";
 
 const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
 
@@ -33,6 +36,7 @@ const INSIGHT_FIELDS = [
   { label: "Description", get: (i: { descriptionText?: string }) => i.descriptionText },
   { label: "Icon color", get: (i: { iconColor?: string }) => i.iconColor },
   { label: "Members", get: (i: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(i.members) },
+  { label: "Private", get: (i: { private?: boolean }) => formatPrivate(i.private) },
   { label: "URL", get: (i: { url?: string }) => i.url },
 ];
 
@@ -40,13 +44,15 @@ export function registerInsightCommand(program: Command): void {
   const insight = program.command("insight").description("Quire insights.");
 
   insight
-    .command("list <project>")
-    .description("List insights on a project. <project> = OID, slug, or URL.")
-    .action(async (project: string) => {
+    .command("list <owner>")
+    .description("List insights on an owner. <owner> = OID, slug, or URL (projects / orgs); folders need an OID.")
+    .option("--owner-type <type>", OWNER_TYPE_HELP)
+    .action(async (owner: string, cmdOpts: { ownerType?: string }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
-      const oid = await client.resolveProjectOid(project);
-      const insights = await client.listInsights(oid);
+      const ownerType = parseOwnerType(cmdOpts.ownerType);
+      const ownerOid = await resolveOwnerOid(client, ownerType, owner);
+      const insights = await client.listInsights(ownerType, ownerOid);
       renderList(insights, root, {
         columns: [
           { header: "ID", get: (i) => i.id },
@@ -67,35 +73,44 @@ export function registerInsightCommand(program: Command): void {
       renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
     });
 
-  addMemberOptions(insight
-    .command("create <project>")
-    .description("Create an insight inside a project.")
+  addPrivateOption(addMemberOptions(insight
+    .command("create <owner>")
+    .description("Create an insight on an owner (project by default).")
     .requiredOption("--name <name>", "Insight name (required)")
+    .option("--owner-type <type>", OWNER_TYPE_HELP)
     .option("--id <id>", "Caller-supplied id (must pass Quire's isValidId)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--icon-color <color>", "Color: name like 'red'/'blue' or 2-digit code")
-    .option("--image <url>", "Icon image URL"))
-    .action(async (project: string, cmdOpts: {
-      name: string; id?: string; description?: string; iconColor?: string; image?: string;
+    .option("--image <url>", "Icon image URL")
+    .option("--partner <oid>", "Partner OID, to share the insight with an external team")))
+    .action(async (owner: string, cmdOpts: {
+      name: string; ownerType?: string; id?: string; description?: string; iconColor?: string; image?: string;
+      partner?: string; private?: boolean;
     } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const members = resolveMembers(cmdOpts);
-      const projectOid = await client.resolveProjectOid(project);
+      if (members !== undefined && cmdOpts.partner !== undefined) {
+        throw new ValidationError("Cannot combine --member / --members-admins-only with --partner — Quire rejects the pair with 400.");
+      }
+      const ownerType = parseOwnerType(cmdOpts.ownerType);
+      const ownerOid = await resolveOwnerOid(client, ownerType, owner);
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const iconColor = cmdOpts.iconColor !== undefined ? normalizeInsightColor(cmdOpts.iconColor) : undefined;
-      const i = await client.createInsight("project", projectOid, {
+      const i = await client.createInsight(ownerType, ownerOid, {
         name: cmdOpts.name,
         ...(cmdOpts.id !== undefined ? { id: cmdOpts.id } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(iconColor !== undefined ? { iconColor } : {}),
         ...(cmdOpts.image !== undefined ? { image: cmdOpts.image } : {}),
+        ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...(members !== undefined ? { members } : {}),
+        ...(cmdOpts.private === true ? { private: true } : {}),
       });
       renderObject(i, root, { fields: INSIGHT_FIELDS, toId: (i) => i.oid });
     });
 
-  insight
+  addPrivateToggle(insight
     .command("update <oid>")
     .description("Update an insight.")
     .option("--name <name>")
@@ -103,10 +118,10 @@ export function registerInsightCommand(program: Command): void {
     .option("--icon-color <color>")
     .option("--image <url>")
     .option("--archive", "Archive the insight")
-    .option("--unarchive", "Unarchive the insight")
+    .option("--unarchive", "Unarchive the insight"))
     .action(async (oid: string, cmdOpts: {
       name?: string; description?: string; iconColor?: string; image?: string;
-      archive?: boolean; unarchive?: boolean;
+      archive?: boolean; unarchive?: boolean; private?: boolean;
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -115,13 +130,14 @@ export function registerInsightCommand(program: Command): void {
       }
       const description = cmdOpts.description !== undefined ? await resolveTextInput(cmdOpts.description) : undefined;
       const iconColor = cmdOpts.iconColor !== undefined ? normalizeInsightColor(cmdOpts.iconColor) : undefined;
-      const body: { name?: string; description?: string; iconColor?: string; image?: string; archived?: boolean } = {};
+      const body: { name?: string; description?: string; iconColor?: string; image?: string; archived?: boolean; private?: boolean } = {};
       if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
       if (description !== undefined) body.description = description;
       if (iconColor !== undefined) body.iconColor = iconColor;
       if (cmdOpts.image !== undefined) body.image = cmdOpts.image;
       if (cmdOpts.archive === true) body.archived = true;
       if (cmdOpts.unarchive === true) body.archived = false;
+      if (cmdOpts.private !== undefined) body.private = cmdOpts.private;
       if (Object.keys(body).length === 0) {
         throw new ValidationError("`insight update` requires at least one change-flag.");
       }
@@ -210,16 +226,11 @@ export function registerInsightCommand(program: Command): void {
     .command("field")
     .description("Manage custom-field definitions on an insight (formula / lookup types).");
 
-  field
+  addFieldFlagOptions(field
     .command("add <insight-oid>")
     .description("Add a custom-field to an insight. Insights only allow formula / lookup types.")
     .requiredOption("--name <name>", "Field name (required)")
-    .requiredOption("--type <type>", "Field type (insights: formula | lookup)")
-    .option("--hidden")
-    .option("--private")
-    .option("--percent")
-    .option("--multiple")
-    .option("--clear-on-dup")
+    .requiredOption("--type <type>", "Field type (insights: formula | lookup)"), "add")
     .option("--extra <kv>", "key=value; repeat for type-specific config", append, [] as string[])
     .action(async (insightOid: string, cmdOpts: FieldFlags) => {
       const root = program.opts<GlobalOpts>();
@@ -229,22 +240,17 @@ export function registerInsightCommand(program: Command): void {
       renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
     });
 
-  field
+  addFieldFlagOptions(field
     .command("update <insight-oid> <field-name>")
     .description("Update a custom-field definition on an insight.")
-    .option("--type <type>", "New type")
-    .option("--hidden")
-    .option("--private")
-    .option("--percent")
-    .option("--multiple")
-    .option("--clear-on-dup")
+    .option("--type <type>", "New type"), "update")
     .option("--extra <kv>", "key=value; repeat", append, [] as string[])
     .action(async (insightOid: string, fieldName: string, cmdOpts: Omit<FieldFlags, "name">) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const body = buildFieldBody(cmdOpts);
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`insight field update` requires at least one of --type / --hidden / --private / --percent / --multiple / --clear-on-dup / --extra.");
+        throw new ValidationError("`insight field update` requires at least one change-flag (--type / --hidden / --private / --view-member / --edit-member / --locked / --extra / ...).");
       }
       const f = await client.updateInsightField(insightOid, fieldName, body);
       renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });

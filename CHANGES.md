@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+Covers the Sep 25 and Oct 15 2026 server releases through `@quire-io/api-client` 1.2.1.
+
+- **Comment reactions** (server release Oct 15 2026) — `comment add-emoji <oid> <emoji...>` adds your reactions to a task or chat comment and `comment remove-emoji <oid> <emoji...>` removes them. An emoji can be given as itself or by its shortcode (`+1`, `tada`, `:heart:`, any case), as separate arguments or comma-separated. Adding takes only the 20 emojis Quire's reaction picker offers, and one invalid emoji rejects the whole call with 400. Adding a reaction already there, or removing one that isn't, is a no-op. Both endpoints return no body, so the commands report what was sent (`{oid, added|removed}` under `--json`, the OID under `--quiet`) and `comment get` shows the result.
+    - `comment get` gains a Reactions line (`👍 Alice, Bob · 🎉 Carol`), and `comment list`, `task comments` and `chat comments` gain a REACTIONS column of counts (`👍2 🎉1`).
+- **Fix: the WHO column of a comment list was always empty**, and so was `comment get`'s Who line. A comment's `createdBy` is the author's user OID, not the user object the API doc gives (api-client 1.2.0), so `createdBy.name` never existed. The author names are now looked up once per distinct author, falling back to the OID when a user can't be read. A comment posted as the app shows as `(app)`. `--json` and `--quiet` skip the lookups.
+- **`comment add --pin` / `--as-app`** pins the comment as it is created, or posts it as the app instead of as you. `chat comment add` gains `--as-app`.
+- **`private` on works** (Oct 15 2026) — `sublist`, `doc`, `chat`, `insight` and `dashboard` `create` take `--private`, and their `update` takes `--private` / `--no-private`: a private record is hidden from guests and from the visitors of a public project or of a share link. Unlike `--member` it can be changed later. It is a choice only for a record visible to every member: one with members or a partner is always hidden from them, so `--private` is a no-op there and Quire rejects `--no-private` with 400. The matching `get` output gains a Private line.
+- **Custom field access** (Oct 15 2026) — `project field add` / `update` and `insight field add` / `update` gain `--view-member <user>` / `--view-members-admins-only`, `--edit-member <user>` / `--edit-members-admins-only` and `--locked`. `update` also takes `--view-members-anyone` / `--edit-members-anyone` to lift a restriction, `--no-locked` and `--no-private`.
+    - View members can see the values; an admin not named sees the field but not its values, and a field with view members is always private. Lifting the view restriction leaves the field private until `--no-private`, and `--no-private` together with a view restriction is rejected up front (Quire 400s on it).
+    - Edit members apply to API writes too. `--locked` stops everyone, admins included, from editing the values in Quire, while the API can still write them.
+    - The field output gains View members / Edit members / Locked lines. The `--private` help no longer says "visible only to admins": a private field is hidden from guests and visitors.
+- **`reminder list --timing standalone|anchored` / `--status active|all`** (Sep 25 2026) — `standalone` lists the reminders firing at their own time (no task, or a task with no dates) and `anchored` those firing from their task's dates. `--status active` keeps only the reminders with a notification still to come.
+- **Insights of any owner** — `insight list` and `insight create` take `--owner-type project|organization|folder|smart-folder` (default `project`), like `dashboard`. Projects and organizations resolve from OID / slug / URL; folders and smart folders need an OID. `insight create` also gains `--partner`; with `--member` it is rejected up front, as on `chat` and `dashboard`.
+- **`task list` / `task subtasks --status active|completed|<0-100>`** — filtered before paging, so a page still holds `--limit` tasks while that many match.
+- `task get` gains Predecessors and Successors lines (`#12, #15`).
+- **Fix: `dashboard create` / `update` no longer take `--start` / `--due`**, and `dashboard get` no longer has Start / Due lines. A dashboard has no dates: Quire rejected either flag with 400 and never returned them, so no working call used them. Sublists, the only works with dates, keep theirs.
+- Bumps `@quire-io/api-client` to `^1.2.1`.
 - **Package metadata:** `homepage` points to the Quire CLI section of the API reference instead of the GitHub README, which stays linked as `repository`. The link carries `utm_source=npm&utm_medium=referral&utm_campaign=quire-cli` so GA4 can attribute the visits; on quire.io/dev/api/ the tag stays out of Quire's signup-source stats.
 
 ## 1.0.0 — 2026-09-22

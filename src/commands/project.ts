@@ -8,7 +8,7 @@ import { renderList, renderObject } from "../output/render.js";
 import { createQuireClient } from "../quire-client.js";
 import { confirmDestructive } from "../util/confirm.js";
 import type { FieldFlags } from "../util/field-flags.js";
-import { buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
+import { addFieldFlagOptions, buildFieldBody, FIELD_FIELDS } from "../util/field-flags.js";
 import { resolveTextInput } from "../util/text-input.js";
 
 const PROJECT_GET_FIELDS = [
@@ -282,16 +282,11 @@ export function registerProjectCommand(program: Command): void {
     .command("field")
     .description("Manage custom-field definitions on a project.");
 
-  field
+  addFieldFlagOptions(field
     .command("add <project>")
     .description("Add a custom-field definition. Use --extra for type-specific config (JSON-parsed when possible).")
     .requiredOption("--name <name>", "Field name (required)")
-    .requiredOption("--type <type>", "Field type: text|number|money|date|duration|select|checkbox|user|task|hyperlink|email|formula|file|lookup")
-    .option("--hidden", "Hide the field by default")
-    .option("--private", "Mark as private (visible only to admins)")
-    .option("--percent", "Format numeric values as percentage")
-    .option("--multiple", "Allow multiple values")
-    .option("--clear-on-dup", "Clear value when a task is duplicated")
+    .requiredOption("--type <type>", "Field type: text|number|money|date|duration|select|checkbox|user|task|hyperlink|email|formula|file|lookup"), "add")
     .option("--extra <kv>", "key=value; repeat for type-specific config (e.g. --extra options='[{...}]')", append, [] as string[])
     .action(async (projectInput: string, cmdOpts: FieldFlags) => {
       const root = program.opts<GlobalOpts>();
@@ -302,15 +297,10 @@ export function registerProjectCommand(program: Command): void {
       renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
     });
 
-  field
+  addFieldFlagOptions(field
     .command("update <project> <field-name>")
-    .description("Update a custom-field definition. Use --rename for renaming (or `field rename` for the dedicated command).")
-    .option("--type <type>", "New type")
-    .option("--hidden")
-    .option("--private")
-    .option("--percent")
-    .option("--multiple")
-    .option("--clear-on-dup")
+    .description("Update a custom-field definition. Use `field rename` to rename it.")
+    .option("--type <type>", "New type"), "update")
     .option("--extra <kv>", "key=value; repeat for type-specific config", append, [] as string[])
     .action(async (projectInput: string, fieldName: string, cmdOpts: Omit<FieldFlags, "name">) => {
       const root = program.opts<GlobalOpts>();
@@ -318,7 +308,7 @@ export function registerProjectCommand(program: Command): void {
       const projectOid = await client.resolveProjectOid(projectInput);
       const body = buildFieldBody(cmdOpts);
       if (Object.keys(body).length === 0) {
-        throw new ValidationError("`field update` requires at least one of --type / --hidden / --private / --percent / --multiple / --clear-on-dup / --extra.");
+        throw new ValidationError("`field update` requires at least one change-flag (--type / --hidden / --private / --view-member / --edit-member / --locked / --extra / ...).");
       }
       const f = await client.updateProjectField(projectOid, fieldName, body);
       renderObject(f, root, { fields: FIELD_FIELDS, toId: (f) => f.name });
