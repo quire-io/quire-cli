@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-10-16
 
-Covers the Sep 25 and Oct 15 2026 server releases through `@quire-io/api-client` 1.2.1.
+Covers the Sep 25 and Oct 15 2026 server releases through `@quire-io/api-client` 1.2.1. Additive under semver: the one flag removal, `dashboard --start` / `--due`, takes out flags Quire always rejected.
 
 - **Comment reactions** (server release Oct 15 2026) — `comment add-emoji <oid> <emoji...>` adds your reactions to a task or chat comment and `comment remove-emoji <oid> <emoji...>` removes them. An emoji can be given as itself or by its shortcode (`+1`, `tada`, `:heart:`, any case), as separate arguments or comma-separated. Adding takes only the 20 emojis Quire's reaction picker offers, and one invalid emoji rejects the whole call with 400. Adding a reaction already there, or removing one that isn't, is a no-op. Both endpoints return no body, so the commands report what was sent (`{oid, added|removed}` under `--json`, the OID under `--quiet`) and `comment get` shows the result.
     - `comment get` gains a Reactions line (`👍 Alice, Bob · 🎉 Carol`), and `comment list`, `task comments` and `chat comments` gain a REACTIONS column of counts (`👍2 🎉1`).
