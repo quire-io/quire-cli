@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.2 — 2026-10-19
 
 Follows the rest of the Oct 16 2026 server release through `@quire-io/api-client` 1.2.3.
 
