@@ -657,7 +657,7 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("bulk-create <project>")
-    .description("Create many tasks atomically (max 300/call). --from-file accepts a JSON array of task objects; '-' reads stdin.")
+    .description("Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
     .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
     .action(async (project: string, cmdOpts: { fromFile: string; dryRun?: boolean }) => {
@@ -674,7 +674,7 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("bulk-subtasks <parent>")
-    .description("Create many subtasks under one parent atomically (max 300/call). <parent> = OID, slug/#N, or URL.")
+    .description("Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
     .option("--position <pos>", "Insert position: parent | before | after (default: server's submit-order)")
     .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
@@ -800,7 +800,7 @@ export function registerTaskCommand(program: Command): void {
     .description("Apply an approval state to many tasks at once.")
     .requiredOption("--from-file <file>", "Ref list (one per line) or JSON array (or '-' for stdin)")
     .requiredOption("--state <state>", "'request' | 'approve' | 'reject' | 'change'")
-    .option("--category <id>", "Approval category (only used when --state request)")
+    .option("--category <id>", "Approval category id, not its name (default: the project's default category)")
     .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
     .action(async (project: string, cmdOpts: { fromFile: string; state: string; category?: string; dryRun?: boolean }) => {
       const root = program.opts<GlobalOpts>();
@@ -826,13 +826,13 @@ export function registerTaskCommand(program: Command): void {
     .command("approve <id>")
     .description("Set a task's approval state. Optionally post a companion comment.")
     .requiredOption("--state <state>", "request | approve | reject | change")
-    .option("--category <id>", "Approval category id (only meaningful for --state request)")
-    .option("--comment <text>", "Post a companion comment with the approval; '-' for stdin or '@file' for a file. Server prefixes with **<stream>: <status>**.")
+    .option("--category <id>", "Approval category id, not its name (default: the project's default category)")
+    .option("--comment <text>", "Post a companion comment with the approval; '-' for stdin or '@file' for a file. Server prefixes a '<category>: <status>' line (no category for the default one). approve / reject / change log a header-only comment without it.")
     .option("--comment-pinned", "Pin the companion comment (requires --comment).")
-    .option("--comment-as-user <user>", "Post the companion comment as another user OID/id/email (requires --comment).")
+    .option("--comment-as-app", "Post the companion comment as the app instead of as you (requires --comment).")
     .action(async (id: string, cmdOpts: {
       state: string; category?: string;
-      comment?: string; commentPinned?: boolean; commentAsUser?: string;
+      comment?: string; commentPinned?: boolean; commentAsApp?: boolean;
     }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -841,14 +841,14 @@ export function registerTaskCommand(program: Command): void {
       if (!(validStates as readonly string[]).includes(cmdOpts.state)) {
         throw new ValidationError(`--state must be one of ${validStates.join(", ")}; got "${cmdOpts.state}"`);
       }
-      if (cmdOpts.comment === undefined && (cmdOpts.commentPinned === true || cmdOpts.commentAsUser !== undefined)) {
-        throw new ValidationError("--comment-pinned / --comment-as-user require --comment.");
+      if (cmdOpts.comment === undefined && (cmdOpts.commentPinned === true || cmdOpts.commentAsApp === true)) {
+        throw new ValidationError("--comment-pinned / --comment-as-app require --comment.");
       }
       const comment = cmdOpts.comment !== undefined
         ? {
             description: await resolveTextInput(cmdOpts.comment),
             ...(cmdOpts.commentPinned === true ? { pinned: true } : {}),
-            ...(cmdOpts.commentAsUser !== undefined ? { asUser: cmdOpts.commentAsUser } : {}),
+            ...(cmdOpts.commentAsApp === true ? { asUser: true } : {}),
           }
         : undefined;
       const a = await client.approveTask(oid, {

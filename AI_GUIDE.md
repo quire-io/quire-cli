@@ -181,7 +181,9 @@ uniformly.
 - **`--quiet` is for piping IDs back into the CLI.** It emits one ID
   per line, ready for `xargs quire task complete`, etc.
 - **Mind the rate limits.** Before long bulk runs, check
-  `quire org limit <org-id>`. Bulk ops cap at 300 items per call.
+  `quire org limit <org-id>`. Bulk ops cap at 300 items per call, and
+  at the plan's per-minute limit: 50 on the Free plan, 25 in a personal
+  project on Free. Nested subtasks count as items. Split a larger batch.
 - **Confirm before destructive ops.** Don't pass `--yes` blindly to
   AI-driven pipelines. `quire undo <kind> <oid>` can restore most
   resources if you act quickly.

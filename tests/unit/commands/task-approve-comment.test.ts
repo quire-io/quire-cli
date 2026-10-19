@@ -37,7 +37,7 @@ describe("quire task approve --comment", () => {
       "--state", "approve",
       "--comment", "Looks good to ship",
       "--comment-pinned",
-      "--comment-as-user", "u-bot",
+      "--comment-as-app",
     ]);
 
     expect(approveTask).toHaveBeenCalledWith("0task00001", {
@@ -45,7 +45,7 @@ describe("quire task approve --comment", () => {
       comment: {
         description: "Looks good to ship",
         pinned: true,
-        asUser: "u-bot",
+        asUser: true,
       },
     });
   });
@@ -82,6 +82,24 @@ describe("quire task approve --comment", () => {
       "--state", "approve",
       "--comment-pinned",
     ])).rejects.toThrow(/--comment-pinned/);
+    expect(approveTask).not.toHaveBeenCalled();
+  });
+
+  it("rejects --comment-as-app without --comment", async () => {
+    const approveTask = vi.fn().mockResolvedValue(approval);
+    mockedFactory.mockReturnValue({ approveTask } as never);
+    mockedResolveTask.mockResolvedValue("0task00001");
+
+    captureStdout();
+    captureStderr();
+    const program = makeRootProgram();
+    program.exitOverride();
+    registerTaskCommand(program);
+    await expect(program.parseAsync([
+      "node", "test", "task", "approve", "0task00001",
+      "--state", "approve",
+      "--comment-as-app",
+    ])).rejects.toThrow(/--comment-as-app/);
     expect(approveTask).not.toHaveBeenCalled();
   });
 });

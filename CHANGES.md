@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Follows the rest of the Oct 16 2026 server release through `@quire-io/api-client` 1.2.3.
+
+- **`task approve --comment-as-app`** replaces `--comment-as-user <user>`. It posts the companion comment as the app instead of as you, like `comment add --as-app`. The old flag promised to post as another user, which the API never offered: `asUser` is a yes/no for posting as the app, and Quire ignored the user given. No call worked with it, so taking it out breaks nothing that did.
+    - Quire itself still posts an approval's comment as you, though the API doc says `asUser` posts it as the app. The flag takes effect once the server is fixed.
+- **Approval help** — `task approve --comment` describes the header Quire writes: a plain `<category>: <status>` line, with no category for the default one. Without `--comment`, `approve`, `reject` and `change` log a header-only comment. `--category` on `task approve` and `task bulk-approve` takes the category's ID, not its name, and applies to every state, not only `request`.
+- **Bulk batch size** — the `bulk-create` / `bulk-subtasks` help and the AI guide give the new cap: at most 300 items, and no more than the plan's per-minute limit (50 on the Free plan, 25 in a personal project on Free). Nested subtasks count as items. Quire rejects a larger batch with 402; split it.
+- Bumps `@quire-io/api-client` to `^1.2.3`.
+
 ## 1.1.1 — 2026-10-16
 
 Follows the Oct 16 2026 server release through `@quire-io/api-client` 1.2.2.

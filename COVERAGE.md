@@ -427,7 +427,7 @@ Attach a file to a task. <file> = path on disk, or '-' to read bytes from stdin 
 
 ### `quire task bulk-create <project>`
 
-Create many tasks atomically (max 300/call). --from-file accepts a JSON array of task objects; '-' reads stdin.
+Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin.
 
 | Flag | Description |
 |---|---|
@@ -436,7 +436,7 @@ Create many tasks atomically (max 300/call). --from-file accepts a JSON array of
 
 ### `quire task bulk-subtasks <parent>`
 
-Create many subtasks under one parent atomically (max 300/call). <parent> = OID, slug/#N, or URL.
+Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL.
 
 | Flag | Description |
 |---|---|
@@ -497,7 +497,7 @@ Apply an approval state to many tasks at once.
 |---|---|
 | `--from-file <file>` | Ref list (one per line) or JSON array (or '-' for stdin) |
 | `--state <state>` | 'request' \| 'approve' \| 'reject' \| 'change' |
-| `--category <id>` | Approval category (only used when --state request) |
+| `--category <id>` | Approval category id, not its name (default: the project's default category) |
 | `--dry-run` | Validate the batch server-side without persisting; response mirrors the real call. |
 
 ### `quire task approve <id>`
@@ -507,10 +507,10 @@ Set a task's approval state. Optionally post a companion comment.
 | Flag | Description |
 |---|---|
 | `--state <state>` | request \| approve \| reject \| change |
-| `--category <id>` | Approval category id (only meaningful for --state request) |
-| `--comment <text>` | Post a companion comment with the approval; '-' for stdin or '@file' for a file. Server prefixes with **<stream>: <status>**. |
+| `--category <id>` | Approval category id, not its name (default: the project's default category) |
+| `--comment <text>` | Post a companion comment with the approval; '-' for stdin or '@file' for a file. Server prefixes a '<category>: <status>' line (no category for the default one). approve / reject / change log a header-only comment without it. |
 | `--comment-pinned` | Pin the companion comment (requires --comment). |
-| `--comment-as-user <user>` | Post the companion comment as another user OID/id/email (requires --comment). |
+| `--comment-as-app` | Post the companion comment as the app instead of as you (requires --comment). |
 
 ### `quire task revoke-approval <id>`
 

@@ -120,8 +120,8 @@ Tasks (write):
   quire task attach <id> <file>              Attach a file to a task ('-' = stdin; --filename / --content-type optional)
 
 Tasks (bulk):
-  quire task bulk-create <project>     --from-file tasks.json   Create up to 300 tasks atomically
-  quire task bulk-subtasks <parent>    --from-file tasks.json   Create up to 300 subtasks under one parent
+  quire task bulk-create <project>     --from-file tasks.json   Create up to 300 tasks atomically (fewer on Free)
+  quire task bulk-subtasks <parent>    --from-file tasks.json   Create up to 300 subtasks under one parent (fewer on Free)
   quire task bulk-update <project>     --from-file updates.json Update many tasks atomically (each item needs an oid)
   quire task bulk-delete <project>     --from-file ids.txt      Delete many (prompts unless --yes); refs one per line or JSON array
   quire task bulk-move <project>       --to <id|root> --from-file ids.txt
@@ -130,7 +130,7 @@ Tasks (bulk):
 
 Tasks (approval / timelogs / recurrence):
   quire task approve <id> --state ...           Set a task's approval state
-                                                Add --comment <text|-|@file> [--comment-pinned / --comment-as-user] to post a companion comment
+                                                Add --comment <text|-|@file> [--comment-pinned / --comment-as-app] to post a companion comment
   quire task revoke-approval <id>               Revoke any approval state
   quire task timelog add <id>     --start --end [--user / --billable / --note]
   quire task timelog update <id>  --start --end [--new-start / --new-end / --note / ...]
