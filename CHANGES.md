@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Follows the Oct 19 and Oct 23 2026 server releases through `@quire-io/api-client` 1.2.4.
+
+- **Fix: custom-field names with a `/`** — `project field update` / `rename` / `move` / `remove` and their `insight field` counterparts work on a field such as `Over/Under`, which Quire rejected with 400. They now send the field's name in the query instead of the path.
+    - Until the Oct 23 2026 server release, these commands reported success and changed nothing on a name with a space or another character that needs encoding (`Billable Amount`). Quire fixed that on its side; the query form doesn't depend on it.
+    - Quire's answers changed with it: a missing field, or a missing `--before` field, is 404 on `update`, `rename` and `move`, where it used to succeed; `field add` of a name already there, or a `rename` to one, is 409. `remove` of a missing field still succeeds.
+- **`task approve --comment-as-app` takes effect** — since the Oct 19 2026 server release, Quire posts the companion comment as the app. The approval stays yours.
+- **Attachment names keep their spaces** — since the Oct 23 2026 server release, `task attach` and `comment attach` save `My Report.md` as given, no longer as `My%20Report.md`. No CLI change.
+- Bumps `@quire-io/api-client` to `^1.2.4`.
+
 ## 1.1.2 — 2026-10-19
 
 Follows the rest of the Oct 16 2026 server release through `@quire-io/api-client` 1.2.3.
