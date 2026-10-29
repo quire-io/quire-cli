@@ -165,7 +165,7 @@ Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
   quire tag update <oid>          Update tag --name / --color
   quire tag delete <oid>          Delete a tag (prompts unless --yes)
-  quire sublist create <project>      Create a sublist (--name / --description / --member / --members-admins-only / --private)
+  quire sublist create <project>      Create a sublist (--name / --description / --start / --due / --include / --member / --members-admins-only / --private)
   quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive / --private / --no-private)
   quire sublist add-task <oid> <task> Add a task to a sublist
   quire sublist remove-task <oid> <task>  Remove a task from a sublist

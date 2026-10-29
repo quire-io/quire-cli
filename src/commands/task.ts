@@ -12,6 +12,7 @@ import { createQuireClient } from "../quire-client.js";
 import { resolveAttachInput } from "../util/attach-input.js";
 import { readBulkItems, readBulkRefs } from "../util/bulk-input.js";
 import { confirmDestructive } from "../util/confirm.js";
+import { withCreator, withCreatorInItems } from "../util/followers.js";
 import { parseRecurrence } from "../util/recurrence.js";
 import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveTaskOid } from "../util/task-id.js";
@@ -327,7 +328,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--due <date>", "Due date (YYYY-MM-DD or ISO 8601)")
     .option("--start <date>", "Start date")
     .option("--assignee <user>", "Assignee (OID, id, or email); repeat for multiple", append, [] as string[])
-    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple`, append, [] as string[])
+    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple. You follow the new task either way`, append, [] as string[])
     .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
     .option("--parent <id>", "Create as a subtask of this parent task")
     .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
@@ -352,7 +353,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
-        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        followers: withCreator(cmdOpts.follower),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };
@@ -385,7 +386,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--due <date>")
     .option("--start <date>")
     .option("--assignee <user>", "Repeat for multiple", append, [] as string[])
-    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple`, append, [] as string[])
+    .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple. You follow the new task either way`, append, [] as string[])
     .option("--tag <tag>", "Repeat for multiple", append, [] as string[]))
     .action(async (parentId: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
@@ -402,7 +403,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
-        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        followers: withCreator(cmdOpts.follower),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       });
@@ -657,7 +658,7 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("bulk-create <project>")
-    .description("Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin.")
+    .description("Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin. You follow every task created, nested ones included.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
     .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
     .action(async (project: string, cmdOpts: { fromFile: string; dryRun?: boolean }) => {
@@ -665,7 +666,7 @@ export function registerTaskCommand(program: Command): void {
       const client = createQuireClient({ profile: root.profile });
       const projectOid = await client.resolveProjectOid(project);
       const items = await readBulkItems(cmdOpts.fromFile);
-      const results = await client.bulkCreateTasks(projectOid, items, {
+      const results = await client.bulkCreateTasks(projectOid, withCreatorInItems(items), {
         ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });
       renderBulkResults(results, root);
@@ -674,7 +675,7 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("bulk-subtasks <parent>")
-    .description("Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL.")
+    .description("Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL. You follow every task created, nested ones included.")
     .requiredOption("--from-file <file>", "JSON array of task objects (or '-' for stdin)")
     .option("--position <pos>", "Insert position: parent | before | after (default: server's submit-order)")
     .option("--dry-run", "Validate the batch server-side without persisting; response mirrors the real call.")
@@ -686,7 +687,7 @@ export function registerTaskCommand(program: Command): void {
       }
       const parentOid = await resolveTaskOid(client, parent);
       const items = await readBulkItems(cmdOpts.fromFile);
-      const results = await client.bulkCreateSubtasks(parentOid, items, {
+      const results = await client.bulkCreateSubtasks(parentOid, withCreatorInItems(items), {
         ...(cmdOpts.position !== undefined ? { position: cmdOpts.position as "parent" | "before" | "after" } : {}),
         ...(cmdOpts.dryRun === true ? { dryRun: true } : {}),
       });

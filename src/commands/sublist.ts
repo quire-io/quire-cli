@@ -11,6 +11,8 @@ import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { resolveTaskOid } from "../util/task-id.js";
 
+const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
+
 const SUBLIST_FIELDS = [
   { label: "Name", get: (s: { nameText?: string; name: string }) => s.nameText ?? s.name },
   { label: "ID", get: (s: { id: string }) => s.id },
@@ -58,15 +60,24 @@ export function registerSublistCommand(program: Command): void {
     .command("create <project>")
     .description("Create a sublist in a project.")
     .requiredOption("--name <name>", "Sublist name (required)")
-    .option("--description <text>", "Sublist description")))
-    .action(async (project: string, cmdOpts: { name: string; description?: string; private?: boolean } & MemberFlags) => {
+    .option("--description <text>", "Sublist description")
+    .option("--start <date>", "Start date (YYYY-MM-DD)")
+    .option("--due <date>", "Due date (YYYY-MM-DD)")
+    .option("--include <task>", "Put this task, with all its subtasks, in the new sublist (OID, slug/#N, or URL); repeat for multiple", append, [] as string[])))
+    .action(async (project: string, cmdOpts: {
+      name: string; description?: string; start?: string; due?: string; include?: string[]; private?: boolean;
+    } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const members = resolveMembers(cmdOpts);
       const projectOid = await client.resolveProjectOid(project);
+      const includes = await Promise.all((cmdOpts.include ?? []).map((t) => resolveTaskOid(client, t)));
       const s = await client.createSublist("project", projectOid, {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
+        ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
+        ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
+        ...(includes.length > 0 ? { includes } : {}),
         ...(members !== undefined ? { members } : {}),
         ...(cmdOpts.private === true ? { private: true } : {}),
       });

@@ -82,7 +82,7 @@ describe("--member on create", () => {
 
   it("chat create forwards it", async () => {
     await run(registerChatCommand, ["chat", "create", "alpha", "--name", "C", "--member", "me"]);
-    expect(createChat).toHaveBeenCalledWith("project", "p1", { name: "C", members: ["me"] });
+    expect(createChat).toHaveBeenCalledWith("project", "p1", { name: "C", followers: ["me"], members: ["me"] });
   });
 
   it("chat create refuses --member together with --partner", async () => {

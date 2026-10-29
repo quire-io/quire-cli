@@ -12,6 +12,7 @@ import {
 } from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
+import { withCreator } from "../util/followers.js";
 import { resolveTextInput } from "../util/text-input.js";
 
 const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
@@ -101,7 +102,7 @@ export function registerChatCommand(program: Command): void {
     .requiredOption("--name <name>", "Chat name (required)")
     .option("--description <text>", "Description; '-' for stdin or '@file' for a file")
     .option("--partner <oid>", "Partner OID, if this is a partner chat")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple", append, [] as string[])))
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. You follow the new chat either way", append, [] as string[])))
     .action(async (project: string, cmdOpts: {
       name: string; description?: string; partner?: string; follower?: string[]; private?: boolean;
     } & MemberFlags) => {
@@ -117,7 +118,7 @@ export function registerChatCommand(program: Command): void {
         name: cmdOpts.name,
         ...(description !== undefined ? { description } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
-        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        followers: withCreator(cmdOpts.follower),
         ...(members !== undefined ? { members } : {}),
         ...(cmdOpts.private === true ? { private: true } : {}),
       });

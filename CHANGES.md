@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Follows the Oct 29 2026 server release through `@quire-io/api-client` 1.2.5.
+
+- **You follow what you create again** — since the Oct 29 2026 server release, only the users in `followers`, plus anyone @mentioned in a task's or doc's description, follow a new task, doc or chat. Quire no longer adds you. `task create` (with or without `--parent` / `--sibling`), `task subtask`, `chat create` and `doc create` now add you to the `--follower` list unless `me` is already in it, as the Quire apps do for whoever creates a record. `task bulk-create` and `task bulk-subtasks` do the same for each item in `--from-file`, nested `tasks` included.
+    - No flag skips it. To stop following, run `task update <id> --remove-follower me` afterwards, or the `chat update` / `doc update` equivalent.
+- **`sublist create --start` / `--due`** set the new sublist's dates, as `sublist update` already could. `--include <task>`, repeatable, puts a task and all its subtasks in the new sublist.
+- Bumps `@quire-io/api-client` to `^1.2.5`.
+
 ## 1.1.3 — 2026-10-27
 
 Follows the Oct 19 and Oct 23 2026 server releases through `@quire-io/api-client` 1.2.4.

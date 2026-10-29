@@ -23,10 +23,11 @@ const record = { oid: "x1", id: "x", name: "X", nameText: "X", members: null, pr
 
 type Register = (p: ReturnType<typeof makeRootProgram>) => void;
 
-const KINDS: { kind: string; register: Register; create: string; update: string }[] = [
+// `followed` marks the kinds whose create also sends `followers: ["me"]`.
+const KINDS: { kind: string; register: Register; create: string; update: string; followed?: boolean }[] = [
   { kind: "sublist", register: registerSublistCommand, create: "createSublist", update: "updateSublist" },
-  { kind: "doc", register: registerDocCommand, create: "createDocument", update: "updateDocument" },
-  { kind: "chat", register: registerChatCommand, create: "createChat", update: "updateChat" },
+  { kind: "doc", register: registerDocCommand, create: "createDocument", update: "updateDocument", followed: true },
+  { kind: "chat", register: registerChatCommand, create: "createChat", update: "updateChat", followed: true },
   { kind: "insight", register: registerInsightCommand, create: "createInsight", update: "updateInsight" },
   { kind: "dashboard", register: registerDashboardCommand, create: "createDashboard", update: "updateDashboard" },
 ];
@@ -60,7 +61,9 @@ describe("private on works", () => {
   for (const k of KINDS) {
     it(`${k.kind} create forwards --private`, async () => {
       await run(k.register, [k.kind, "create", "alpha", "--name", "N", "--private"]);
-      expect(client[k.create]).toHaveBeenCalledWith("project", "p1", { name: "N", private: true });
+      expect(client[k.create]).toHaveBeenCalledWith("project", "p1", {
+        name: "N", ...(k.followed === true ? { followers: ["me"] } : {}), private: true,
+      });
     });
 
     it(`${k.kind} update maps --private / --no-private and omits it otherwise`, async () => {

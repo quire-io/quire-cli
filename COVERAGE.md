@@ -5,7 +5,7 @@
 Every runnable `quire` command, with its flags. Generated from the commander tree in
 [`src/program.ts`](src/program.ts), so it cannot drift from what the CLI actually registers.
 
-Generated from 122 commands across 22 groups, with 364 flags.
+Generated from 122 commands across 22 groups, with 367 flags.
 
 Global flags apply to every command and are listed once at the end.
 
@@ -303,7 +303,7 @@ Create a task in a project. Combine with --parent or --sibling+--position to nes
 | `--due <date>` | Due date (YYYY-MM-DD or ISO 8601) |
 | `--start <date>` | Start date |
 | `--assignee <user>` | Assignee (OID, id, or email); repeat for multiple |
-| `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple |
+| `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple. You follow the new task either way |
 | `--tag <tag>` | Tag; repeat for multiple |
 | `--parent <id>` | Create as a subtask of this parent task |
 | `--sibling <id>` | Create relative to this sibling task (use with --position) |
@@ -325,7 +325,7 @@ Create a subtask of an existing task. Alias for `task create --parent`.
 | `--due <date>` |  |
 | `--start <date>` |  |
 | `--assignee <user>` | Repeat for multiple |
-| `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple |
+| `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple. You follow the new task either way |
 | `--tag <tag>` | Repeat for multiple |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
 | `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
@@ -427,7 +427,7 @@ Attach a file to a task. <file> = path on disk, or '-' to read bytes from stdin 
 
 ### `quire task bulk-create <project>`
 
-Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin.
+Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). --from-file accepts a JSON array of task objects; '-' reads stdin. You follow every task created, nested ones included.
 
 | Flag | Description |
 |---|---|
@@ -436,7 +436,7 @@ Create many tasks atomically (max 300/call, nested subtasks included; 50 on Free
 
 ### `quire task bulk-subtasks <parent>`
 
-Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL.
+Create many subtasks under one parent atomically (max 300/call, nested subtasks included; 50 on Free, 25 in a personal project on Free). <parent> = OID, slug/#N, or URL. You follow every task created, nested ones included.
 
 | Flag | Description |
 |---|---|
@@ -623,6 +623,9 @@ Create a sublist in a project.
 |---|---|
 | `--name <name>` | Sublist name (required) |
 | `--description <text>` | Sublist description |
+| `--start <date>` | Start date (YYYY-MM-DD) |
+| `--due <date>` | Due date (YYYY-MM-DD) |
+| `--include <task>` | Put this task, with all its subtasks, in the new sublist (OID, slug/#N, or URL); repeat for multiple |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
 | `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
@@ -766,7 +769,7 @@ Create a chat in a project.
 | `--name <name>` | Chat name (required) |
 | `--description <text>` | Description; '-' for stdin or '@file' for a file |
 | `--partner <oid>` | Partner OID, if this is a partner chat |
-| `--follower <user>` | Follower (OID, ID, or email); repeat for multiple |
+| `--follower <user>` | Follower (OID, ID, or email); repeat for multiple. You follow the new chat either way |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
 | `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
@@ -823,7 +826,7 @@ Create a document in a project. --description accepts '-' (stdin) or '@file'.
 |---|---|
 | `--name <name>` | Document name (required) |
 | `--description <text>` | Document description; '-' for stdin or '@file' for a file |
-| `--follower <user>` | Follower (OID, ID, or email); repeat for multiple. Project-owned docs only. |
+| `--follower <user>` | Follower (OID, ID, or email); repeat for multiple. Project-owned docs only. You follow the new doc either way. |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
 | `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |

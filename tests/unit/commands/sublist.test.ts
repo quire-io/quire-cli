@@ -16,6 +16,43 @@ import { captureStdout, makeRootProgram } from "./_helpers.js";
 const mockedFactory = vi.mocked(createQuireClient);
 const mockedResolveTask = vi.mocked(resolveTaskOid);
 
+describe("quire sublist create", () => {
+  const sublist = { oid: "s1", id: "phase-1", name: "Phase 1", nameText: "Phase 1" };
+  let createSublist: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    createSublist = vi.fn().mockResolvedValue(sublist);
+    mockedResolveTask.mockImplementation(async (_client, input) => `oid-${input}`);
+    mockedFactory.mockReturnValue({ createSublist, resolveProjectOid: vi.fn().mockResolvedValue("p1") } as never);
+    captureStdout();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function run(argv: string[]): Promise<void> {
+    const program = makeRootProgram();
+    registerSublistCommand(program);
+    await program.parseAsync(["node", "test", "sublist", "create", "alpha", "--name", "Phase 1", ...argv]);
+  }
+
+  it("sends --start / --due and the resolved --include tasks", async () => {
+    await run(["--start", "2026-11-01", "--due", "2026-11-30", "--include", "alpha/#1", "--include", "alpha/#2"]);
+    expect(mockedResolveTask).toHaveBeenCalledWith(expect.anything(), "alpha/#1");
+    expect(mockedResolveTask).toHaveBeenCalledWith(expect.anything(), "alpha/#2");
+    expect(createSublist).toHaveBeenCalledWith("project", "p1", {
+      name: "Phase 1", start: "2026-11-01", due: "2026-11-30", includes: ["oid-alpha/#1", "oid-alpha/#2"],
+    });
+  });
+
+  it("leaves start, due and includes off when not given", async () => {
+    await run([]);
+    expect(mockedResolveTask).not.toHaveBeenCalled();
+    expect(createSublist).toHaveBeenCalledWith("project", "p1", { name: "Phase 1" });
+  });
+});
+
 describe("quire sublist add-task / remove-task", () => {
   const sublist = { oid: "s1", id: "phase-1", name: "Phase 1", nameText: "Phase 1" };
   let updateSublistMembership: ReturnType<typeof vi.fn>;

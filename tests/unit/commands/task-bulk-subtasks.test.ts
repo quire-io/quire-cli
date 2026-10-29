@@ -25,6 +25,7 @@ const mockedReadBulkItems = vi.mocked(readBulkItems);
 
 describe("quire task bulk-subtasks", () => {
   const items = [{ name: "child A" }, { name: "child B" }];
+  const sent = [{ name: "child A", followers: ["me"] }, { name: "child B", followers: ["me"] }];
   const created = [
     { oid: "t1", id: "1", name: "child A", nameText: "child A" },
     { oid: "t2", id: "2", name: "child B", nameText: "child B" },
@@ -52,7 +53,7 @@ describe("quire task bulk-subtasks", () => {
     ]);
     expect(mockedResolveTask).toHaveBeenCalledWith(expect.anything(), "alpha/#42");
     expect(mockedReadBulkItems).toHaveBeenCalledWith("tasks.json");
-    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", items, {});
+    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", sent, {});
   });
 
   it("passes through --position", async () => {
@@ -64,7 +65,7 @@ describe("quire task bulk-subtasks", () => {
       "--from-file", "tasks.json",
       "--position", "after",
     ]);
-    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", items, { position: "after" });
+    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", sent, { position: "after" });
   });
 
   it("rejects an invalid --position", async () => {

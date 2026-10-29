@@ -11,6 +11,7 @@ import {
 } from "../util/member-flags.js";
 import type { MemberFlags } from "../util/member-flags.js";
 import { confirmDestructive } from "../util/confirm.js";
+import { withCreator } from "../util/followers.js";
 import { resolveTextInput } from "../util/text-input.js";
 
 const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
@@ -88,7 +89,7 @@ export function registerDocCommand(program: Command): void {
     .description("Create a document in a project. --description accepts '-' (stdin) or '@file'.")
     .requiredOption("--name <name>", "Document name (required)")
     .option("--description <text>", "Document description; '-' for stdin or '@file' for a file")
-    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only.", append, [] as string[])))
+    .option("--follower <user>", "Follower (OID, ID, or email); repeat for multiple. Project-owned docs only. You follow the new doc either way.", append, [] as string[])))
     .action(async (project: string, cmdOpts: { name: string; description?: string; follower?: string[]; private?: boolean } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -98,7 +99,7 @@ export function registerDocCommand(program: Command): void {
       const d = await client.createDocument("project", projectOid, {
         name: cmdOpts.name,
         ...(description !== undefined ? { description } : {}),
-        ...((cmdOpts.follower?.length ?? 0) > 0 ? { followers: cmdOpts.follower } : {}),
+        followers: withCreator(cmdOpts.follower),
         ...(members !== undefined ? { members } : {}),
         ...(cmdOpts.private === true ? { private: true } : {}),
       });

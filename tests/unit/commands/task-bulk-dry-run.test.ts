@@ -59,7 +59,7 @@ describe("quire task bulk-* --dry-run", () => {
       "--dry-run",
     ]);
 
-    expect(bulkCreateTasks).toHaveBeenCalledWith("proj-oid", [{ name: "a" }], {
+    expect(bulkCreateTasks).toHaveBeenCalledWith("proj-oid", [{ name: "a", followers: ["me"] }], {
       dryRun: true,
     });
     expect(err.output()).toContain("Dry run");
@@ -82,7 +82,7 @@ describe("quire task bulk-* --dry-run", () => {
       "--from-file", "tasks.json",
     ]);
 
-    expect(bulkCreateTasks).toHaveBeenCalledWith("proj-oid", [{ name: "a" }], {});
+    expect(bulkCreateTasks).toHaveBeenCalledWith("proj-oid", [{ name: "a", followers: ["me"] }], {});
     expect(err.output()).not.toContain("Dry run");
   });
 
@@ -103,7 +103,7 @@ describe("quire task bulk-* --dry-run", () => {
       "--dry-run",
     ]);
 
-    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", [{ name: "a" }], {
+    expect(bulkCreateSubtasks).toHaveBeenCalledWith("parent-oid", [{ name: "a", followers: ["me"] }], {
       position: "after",
       dryRun: true,
     });

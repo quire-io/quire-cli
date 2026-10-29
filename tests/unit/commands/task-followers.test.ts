@@ -22,6 +22,7 @@ describe("task follower flags", () => {
   let updateTask: ReturnType<typeof vi.fn>;
   let createTask: ReturnType<typeof vi.fn>;
   let createSubtask: ReturnType<typeof vi.fn>;
+  let createTaskRelative: ReturnType<typeof vi.fn>;
   let searchTasks: ReturnType<typeof vi.fn>;
   let resolveProjectOid: ReturnType<typeof vi.fn>;
 
@@ -29,11 +30,12 @@ describe("task follower flags", () => {
     updateTask = vi.fn().mockResolvedValue(task);
     createTask = vi.fn().mockResolvedValue(task);
     createSubtask = vi.fn().mockResolvedValue(task);
+    createTaskRelative = vi.fn().mockResolvedValue(task);
     searchTasks = vi.fn().mockResolvedValue([]);
     resolveProjectOid = vi.fn().mockResolvedValue("p1");
     mockedResolveTask.mockResolvedValue("t1");
     mockedFactory.mockReturnValue({
-      updateTask, createTask, createSubtask, searchTasks, resolveProjectOid,
+      updateTask, createTask, createSubtask, createTaskRelative, searchTasks, resolveProjectOid,
     } as never);
     captureStdout();
   });
@@ -83,13 +85,35 @@ describe("task follower flags", () => {
     expect(createTask).toHaveBeenCalledWith("p1", { name: "x", followers: ["me"] });
   });
 
+  // Quire no longer makes the creator follow a new task (Oct 29 2026), so
+  // the CLI adds "me" unless it's already listed.
+  it("create makes the creator follow without --follower", async () => {
+    await run(["task", "create", "alpha", "--name", "x"]);
+    expect(createTask).toHaveBeenCalledWith("p1", { name: "x", followers: ["me"] });
+  });
+
+  it("create appends the creator to the listed followers", async () => {
+    await run(["task", "create", "alpha", "--name", "x", "--follower", "a@b.co"]);
+    expect(createTask).toHaveBeenCalledWith("p1", { name: "x", followers: ["a@b.co", "me"] });
+  });
+
   it("create --parent routes followers through createSubtask", async () => {
     await run(["task", "create", "alpha", "--name", "x", "--parent", "#7", "--follower", "inherit"]);
-    expect(createSubtask).toHaveBeenCalledWith("t1", { name: "x", followers: ["inherit"] });
+    expect(createSubtask).toHaveBeenCalledWith("t1", { name: "x", followers: ["inherit", "me"] });
+  });
+
+  it("create --sibling makes the creator follow", async () => {
+    await run(["task", "create", "alpha", "--name", "x", "--sibling", "#7", "--position", "after"]);
+    expect(createTaskRelative).toHaveBeenCalledWith("t1", { name: "x", followers: ["me"] }, "after");
   });
 
   it("subtask sends followers", async () => {
     await run(["task", "subtask", "#7", "--name", "x", "--follower", "me"]);
+    expect(createSubtask).toHaveBeenCalledWith("t1", { name: "x", followers: ["me"] });
+  });
+
+  it("subtask makes the creator follow without --follower", async () => {
+    await run(["task", "subtask", "#7", "--name", "x"]);
     expect(createSubtask).toHaveBeenCalledWith("t1", { name: "x", followers: ["me"] });
   });
 
