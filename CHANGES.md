@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+Follows the Oct 30 2026 server release through `@quire-io/api-client` 1.2.6.
+
+- **`--source-ref` on tasks** — `task create`, `task subtask` and `task update` take `--source-ref <json>`, the JSON object an app stores with a task and reads back as is. Its `text` is the Markdown Quire shows as the task's source line, and each app keeps its own data under a key named after it: `'{"text":"From [issue 42](https://…)","github":{"issue":42}}'`. `-` reads it from stdin and `@file` from a file. `task search --source-ref <key>` finds the tasks whose source ref has that key, whatever its value.
+    - On `task update` it replaces the whole object, other apps' keys included; `--source-ref null` removes it.
+    - Until Quire fixes it, a source ref in which a nested object or list comes before a key with a string value is rejected as too big, however small. Put `text` and the other string-valued keys first, as the example does.
+    - `task get` gains Partner and Source ref lines.
+- **`--partner` on tasks** — `task create`, `task subtask` and `task update` take `--partner <team>`, the name or OID of one of the project's external teams, to share the task and its subtasks with that team. Anything else is 400, and the API can't take a task off its team.
+- **`sublist create --all`** puts every task of the project in the new sublist; take some out with `sublist remove-task`. It can't be changed later. `sublist get` gains an All tasks line.
+- **`sublist add-task` / `remove-task --single`** adds or removes the task alone. Without it, the task's subtasks follow it, as before.
+- **`comment update --as-app`** records the app instead of you as the one who edited or pinned the comment, like `comment add --as-app`.
+- **`project export --status active|completed|all`** exports only the active or the completed tasks, and **`--merge`** (CSV only) puts the values of a repeated column, such as every tag, in one column.
+- **`--recurrence-interval` is optional** on `task create` / `subtask` / `update` and `reminder create` / `update`: Quire takes it as 1.
+- **Select options on `project field update`** — `--extra options='[…]'` replaces the whole set, each entry an object `{"name", "color"?, "from"?}`. `from` renames that option, and the tasks set to it keep their value. An option no entry names is removed, and its tasks lose the value. An entry without `color` keeps its color, and `options='[]'` removes every option. The `field add` help gives options as plain names (`'["Low","High"]'`), no longer as objects with a `label`.
+- **What Quire changed on its side** (no CLI change):
+    - Under `--json`: an approval category's `createdBy` is the `{oid, id, name}` user object, not the bare OID. A reminder's `task.id` is a number. A comment's `owner` is `{oid, id, type, …}`, and its `ownerType` is gone. An attachment's `url` is absolute everywhere, no longer `/att/...` in a task's, comment's or project's `attachments`.
+    - `project update --start` / `--due` and `sublist create` / `update --start` / `--due` take a date only (`2026-11-02`); a time of day is 400. A sublist's dates come back as dates, no longer a timestamp at midnight UTC. `project update --start` / `--due` takes a project admin.
+    - `status create` / `update` with a value already in use, and `project approval-category add` with an ID in use, are 409. `status update` used to succeed and change nothing, and `approval-category add` to return the existing category.
+    - 402: `task undo-remove` beyond the plan's task limit, where Quire answered 200 and left the task removed; `task transfer` beyond the target's limits, where it was 400; `project update --public` on a plan without public projects; and `project export` below the Professional plan.
+    - `reminder create --partner` must be one of the project's external teams, or on a task's reminder the team the task is shared with; anything else is 400. An unknown team used to be dropped, and the reminder sent to every member.
+    - With read access only, `--add-follower` / `--remove-follower` may name only `me` or `app`, and `--follower` takes edit access, even as `--follower me`.
+- Bumps `@quire-io/api-client` to `^1.2.6`.
+
 ## 1.1.4 — 2026-10-29
 
 Follows the Oct 29 2026 server release through `@quire-io/api-client` 1.2.5.

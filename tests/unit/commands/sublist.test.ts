@@ -46,10 +46,15 @@ describe("quire sublist create", () => {
     });
   });
 
-  it("leaves start, due and includes off when not given", async () => {
+  it("leaves start, due, includes and all off when not given", async () => {
     await run([]);
     expect(mockedResolveTask).not.toHaveBeenCalled();
     expect(createSublist).toHaveBeenCalledWith("project", "p1", { name: "Phase 1" });
+  });
+
+  it("sends all: true for --all", async () => {
+    await run(["--all"]);
+    expect(createSublist).toHaveBeenCalledWith("project", "p1", { name: "Phase 1", all: true });
   });
 });
 
@@ -82,5 +87,34 @@ describe("quire sublist add-task / remove-task", () => {
     registerSublistCommand(program);
     await program.parseAsync(["node", "test", "sublist", "remove-task", "s1", "alpha/#42"]);
     expect(updateSublistMembership).toHaveBeenCalledWith("s1", [{ task: "t1", exclude: true }]);
+  });
+
+  it("--single changes the task without its subtasks", async () => {
+    captureStdout();
+    const add = makeRootProgram();
+    registerSublistCommand(add);
+    await add.parseAsync(["node", "test", "sublist", "add-task", "s1", "alpha/#42", "--single"]);
+    expect(updateSublistMembership).toHaveBeenLastCalledWith("s1", [{ task: "t1", single: true }]);
+
+    const remove = makeRootProgram();
+    registerSublistCommand(remove);
+    await remove.parseAsync(["node", "test", "sublist", "remove-task", "s1", "alpha/#42", "--single"]);
+    expect(updateSublistMembership).toHaveBeenLastCalledWith("s1", [{ task: "t1", exclude: true, single: true }]);
+  });
+});
+
+describe("quire sublist get", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows an All tasks line for a sublist created with --all", async () => {
+    const getSublist = vi.fn().mockResolvedValue({ oid: "s1", id: "phase-1", name: "Phase 1", all: true });
+    mockedFactory.mockReturnValue({ getSublist } as never);
+    const out = captureStdout();
+    const program = makeRootProgram();
+    registerSublistCommand(program);
+    await program.parseAsync(["node", "test", "sublist", "get", "s1"]);
+    expect(out.output()).toMatch(/^All tasks\s+yes$/m);
   });
 });

@@ -40,6 +40,8 @@ const APPROVAL_CATEGORY_FIELDS = [
 
 const append = (val: string, prev: string[] | undefined): string[] => [...(prev ?? []), val];
 
+const EXPORT_STATUSES = ["active", "completed", "all"] as const;
+
 export function registerProjectCommand(program: Command): void {
   const project = program.command("project").description("Quire projects.");
 
@@ -79,8 +81,8 @@ export function registerProjectCommand(program: Command): void {
     .description("Update project metadata. Pass 'null' to --start / --due to clear.")
     .option("--name <name>", "New name")
     .option("--description <text>", "New description ('-' = stdin, '@file' = file)")
-    .option("--start <date>", "Start date or 'null' to clear")
-    .option("--due <date>", "Due date or 'null' to clear")
+    .option("--start <date>", "Start date (YYYY-MM-DD; a time of day is rejected) or 'null' to clear")
+    .option("--due <date>", "Due date (YYYY-MM-DD; a time of day is rejected) or 'null' to clear")
     .option("--archive", "Archive the project")
     .option("--unarchive", "Unarchive the project")
     .option("--public", "Make the project public to the organization")
@@ -154,17 +156,28 @@ export function registerProjectCommand(program: Command): void {
     .command("export <id>")
     .description("Export the entire project as CSV (default) or JSON. Writes to stdout unless --output is set.")
     .option("--format <fmt>", "Export format: csv | json", "csv")
+    .option("--status <status>", "Export only the 'active' or 'completed' tasks, or 'all' (the default)")
+    .option("--merge", "CSV only: put the values of a repeated column, such as every tag, in one column")
     .option("--output <file>", "Write to this path instead of stdout (use '-' for stdout, the default)")
-    .action(async (id: string, cmdOpts: { format: string; output?: string }) => {
+    .action(async (id: string, cmdOpts: { format: string; status?: string; merge?: boolean; output?: string }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       if (cmdOpts.format !== "csv" && cmdOpts.format !== "json") {
         throw new ValidationError("--format must be one of: csv, json");
       }
+      if (cmdOpts.status !== undefined && !(EXPORT_STATUSES as readonly string[]).includes(cmdOpts.status)) {
+        throw new ValidationError(`--status must be one of: ${EXPORT_STATUSES.join(", ")}; got "${cmdOpts.status}"`);
+      }
+      if (cmdOpts.merge === true && cmdOpts.format !== "csv") {
+        throw new ValidationError("--merge applies to CSV only.");
+      }
       const oid = await client.resolveProjectOid(id);
+      const statusOption = cmdOpts.status !== undefined
+        ? { status: cmdOpts.status as (typeof EXPORT_STATUSES)[number] }
+        : {};
       const body = cmdOpts.format === "csv"
-        ? await client.exportProjectCsv(oid)
-        : await client.exportProjectJson(oid);
+        ? await client.exportProjectCsv(oid, { ...statusOption, ...(cmdOpts.merge === true ? { merge: true } : {}) })
+        : await client.exportProjectJson(oid, statusOption);
       if (cmdOpts.output !== undefined && cmdOpts.output !== "-") {
         writeFileSync(cmdOpts.output, body);
         if (root.quiet === true) {
@@ -287,7 +300,7 @@ export function registerProjectCommand(program: Command): void {
     .description("Add a custom-field definition. Use --extra for type-specific config (JSON-parsed when possible).")
     .requiredOption("--name <name>", "Field name (required)")
     .requiredOption("--type <type>", "Field type: text|number|money|date|duration|select|checkbox|user|task|hyperlink|email|formula|file|lookup"), "add")
-    .option("--extra <kv>", "key=value; repeat for type-specific config (e.g. --extra options='[{...}]')", append, [] as string[])
+    .option("--extra <kv>", "key=value; repeat for type-specific config (e.g. --extra options='[\"Low\",\"High\"]' for a select field)", append, [] as string[])
     .action(async (projectInput: string, cmdOpts: FieldFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -299,9 +312,14 @@ export function registerProjectCommand(program: Command): void {
 
   addFieldFlagOptions(field
     .command("update <project> <field-name>")
-    .description("Update a custom-field definition. Use `field rename` to rename it.")
+    .description(
+      "Update a custom-field definition. Use `field rename` to rename it. " +
+        "A select field's --extra options='[{\"name\":\"Urgent\",\"from\":\"High\"},{\"name\":\"Low\",\"color\":\"13\"}]' replaces the whole set: " +
+        "'from' renames that option and its tasks keep the value; an option no entry names is removed, and its tasks lose the value. " +
+        "An entry without 'color' keeps its color; options='[]' removes every option.",
+    )
     .option("--type <type>", "New type"), "update")
-    .option("--extra <kv>", "key=value; repeat for type-specific config", append, [] as string[])
+    .option("--extra <kv>", "key=value; repeat for type-specific config (JSON-parsed when possible)", append, [] as string[])
     .action(async (projectInput: string, fieldName: string, cmdOpts: Omit<FieldFlags, "name">) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });

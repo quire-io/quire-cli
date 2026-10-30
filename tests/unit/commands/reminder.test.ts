@@ -123,6 +123,16 @@ describe("quire reminder", () => {
       expect(updateReminder).toHaveBeenCalledWith("r1", { recurrence: null });
     });
 
+    // Quire defaults the interval to 1 since Oct 30 2026; a response still
+    // carries it, but the Recurrence line doesn't rely on that.
+    it("leaves the interval to Quire when --recurrence-interval is not given", async () => {
+      updateReminder.mockResolvedValue({ ...reminder, recurrence: { freq: "weekly" } });
+      const out = captureStdout();
+      await run(["reminder", "update", "r1", "--recurrence-freq", "weekly"]);
+      expect(updateReminder).toHaveBeenCalledWith("r1", { recurrence: { freq: "weekly" } });
+      expect(out.output()).toMatch(/^Recurrence\s+weekly every 1$/m);
+    });
+
     it("refuses --clear-recurrence alongside the --recurrence-* flags", async () => {
       await expect(
         run(["reminder", "update", "r1", "--clear-recurrence", "--recurrence-freq", "daily", "--recurrence-interval", "1"]),

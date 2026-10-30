@@ -16,7 +16,8 @@ const VALID_FREQS = ["daily", "weekly", "monthly", "yearly"] as const;
  * none of the recurrence flags are set so the caller can omit the field
  * entirely. Throws `ValidationError` (exit 3) on bad input — matches the
  * Quire wire-shape constraints (positive integer interval, freq enum,
- * 0–6 byweekday integers).
+ * 0–6 byweekday integers). Without `--recurrence-interval` the field is left
+ * off and Quire takes it as 1 (Oct 30 2026; it was 400).
  */
 export function parseRecurrence(flags: RecurrenceFlags): QuireRecurrence | undefined {
   const anyFlag =
@@ -33,18 +34,15 @@ export function parseRecurrence(flags: RecurrenceFlags): QuireRecurrence | undef
     );
   }
 
-  if (flags.recurrenceInterval === undefined) {
-    throw new ValidationError("--recurrence-interval is required when any other --recurrence-* flag is set.");
-  }
-  const interval = Number.parseInt(flags.recurrenceInterval, 10);
-  if (!Number.isInteger(interval) || interval <= 0) {
-    throw new ValidationError(`--recurrence-interval must be a positive integer; got "${flags.recurrenceInterval}"`);
-  }
+  const recurrence: QuireRecurrence = { freq: freq as QuireRecurrence["freq"] };
 
-  const recurrence: QuireRecurrence = {
-    freq: freq as QuireRecurrence["freq"],
-    interval,
-  };
+  if (flags.recurrenceInterval !== undefined) {
+    const interval = Number.parseInt(flags.recurrenceInterval, 10);
+    if (!Number.isInteger(interval) || interval <= 0) {
+      throw new ValidationError(`--recurrence-interval must be a positive integer; got "${flags.recurrenceInterval}"`);
+    }
+    recurrence.interval = interval;
+  }
 
   if (flags.recurrenceByweekday !== undefined) {
     const days = flags.recurrenceByweekday

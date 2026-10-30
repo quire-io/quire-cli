@@ -61,10 +61,12 @@ const REMINDER_FIELDS = [
   // fires from the task's own schedule instead.
   { label: "When", get: (r: QuireReminder) => r.when ?? (r.task ? "(from the task's dates)" : undefined) },
   { label: "Leads", get: (r: QuireReminder) => formatLeads(r.leads) ?? "(one at the fire time)" },
+  // `interval` is optional on the type since writes may leave it out (Quire
+  // takes 1); responses still carry it.
   {
     label: "Recurrence",
     get: (r: QuireReminder) =>
-      r.recurrence ? `${r.recurrence.freq} every ${String(r.recurrence.interval)}` : undefined,
+      r.recurrence ? `${r.recurrence.freq} every ${String(r.recurrence.interval ?? 1)}` : undefined,
   },
   { label: "Members", get: (r: QuireReminder) => formatMembers(r.members) },
   { label: "Created by", get: (r: QuireReminder) => r.createdBy?.name },
@@ -165,9 +167,9 @@ export function registerReminderCommand(program: Command): void {
     .option("--when <iso8601>", "Fire time (UTC, ISO 8601). A bare YYYY-MM-DD means midnight UTC — there is no all-day reminder.")
     .option("--lead <spec>", "Notify this far ahead: '<n>m' minutes, '<n>d' days, or '<n>d@HH:mm'; repeat for multiple (max 30). Omit for one notification at the fire time.", append, [] as string[])
     .option("--name <text>", "Message shown instead of the default (Markdown); '-' for stdin or '@file' for a file")
-    .option("--partner <oid>", "Share with an external team. Project reminders only; cannot be combined with --member.")
+    .option("--partner <oid>", "Share with one of the project's external teams; on a task's reminder, the team the task is shared with. Project reminders only; cannot be combined with --member.")
     .option("--recurrence-freq <freq>", "Recurrence: daily | weekly | monthly | yearly")
-    .option("--recurrence-interval <n>", "Recurrence: positive integer (every N freq-units)")
+    .option("--recurrence-interval <n>", "Recurrence: positive integer, every N freq-units (default 1)")
     .option("--recurrence-byweekday <days>", "Recurrence: comma-separated day numbers 0-6 (0=Sun)")
     .option("--recurrence-until <date>", "Recurrence: ISO 8601 / YYYY-MM-DD end date"))
     .action(async (owner: string, cmdOpts: {
@@ -208,7 +210,7 @@ export function registerReminderCommand(program: Command): void {
     .option("--name <text>", "New message, or 'null' to fall back to the default; '-' for stdin or '@file' for a file")
     .option("--clear-recurrence", "Stop the reminder repeating")
     .option("--recurrence-freq <freq>", "Recurrence: daily | weekly | monthly | yearly")
-    .option("--recurrence-interval <n>", "Recurrence: positive integer (every N freq-units)")
+    .option("--recurrence-interval <n>", "Recurrence: positive integer, every N freq-units (default 1)")
     .option("--recurrence-byweekday <days>", "Recurrence: comma-separated day numbers 0-6 (0=Sun)")
     .option("--recurrence-until <date>", "Recurrence: ISO 8601 / YYYY-MM-DD end date")
     .action(async (oid: string, cmdOpts: {

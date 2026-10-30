@@ -50,7 +50,7 @@
     "url": "https://github.com/quire-io/quire-cli/issues"
   },
   "dependencies": {
-    "@quire-io/api-client": "^1.2.5",
+    "@quire-io/api-client": "^1.2.6",
     "commander": "^12.1.0"
   },
   "devDependencies": {

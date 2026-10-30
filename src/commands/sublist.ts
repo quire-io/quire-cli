@@ -22,6 +22,7 @@ const SUBLIST_FIELDS = [
   { label: "Due", get: (s: { due?: string }) => s.due },
   { label: "Members", get: (s: { members?: ({ name?: string; oid: string } | string)[] | null }) => formatMembers(s.members) },
   { label: "Private", get: (s: { private?: boolean }) => formatPrivate(s.private) },
+  { label: "All tasks", get: (s: { all?: boolean }) => (s.all === true ? "yes" : undefined) },
   { label: "URL", get: (s: { url?: string }) => s.url },
 ];
 
@@ -61,11 +62,12 @@ export function registerSublistCommand(program: Command): void {
     .description("Create a sublist in a project.")
     .requiredOption("--name <name>", "Sublist name (required)")
     .option("--description <text>", "Sublist description")
-    .option("--start <date>", "Start date (YYYY-MM-DD)")
-    .option("--due <date>", "Due date (YYYY-MM-DD)")
-    .option("--include <task>", "Put this task, with all its subtasks, in the new sublist (OID, slug/#N, or URL); repeat for multiple", append, [] as string[])))
+    .option("--start <date>", "Start date (YYYY-MM-DD; a time of day is rejected)")
+    .option("--due <date>", "Due date (YYYY-MM-DD; a time of day is rejected)")
+    .option("--include <task>", "Put this task, with all its subtasks, in the new sublist (OID, slug/#N, or URL); repeat for multiple", append, [] as string[])
+    .option("--all", "Put every task of the project in the new sublist; take some out with remove-task. Can't be changed later")))
     .action(async (project: string, cmdOpts: {
-      name: string; description?: string; start?: string; due?: string; include?: string[]; private?: boolean;
+      name: string; description?: string; start?: string; due?: string; include?: string[]; all?: boolean; private?: boolean;
     } & MemberFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -78,6 +80,7 @@ export function registerSublistCommand(program: Command): void {
         ...(cmdOpts.start !== undefined ? { start: cmdOpts.start } : {}),
         ...(cmdOpts.due !== undefined ? { due: cmdOpts.due } : {}),
         ...(includes.length > 0 ? { includes } : {}),
+        ...(cmdOpts.all === true ? { all: true } : {}),
         ...(members !== undefined ? { members } : {}),
         ...(cmdOpts.private === true ? { private: true } : {}),
       });
@@ -89,8 +92,8 @@ export function registerSublistCommand(program: Command): void {
     .description("Update a sublist's fields.")
     .option("--name <name>")
     .option("--description <text>")
-    .option("--start <date>")
-    .option("--due <date>")
+    .option("--start <date>", "Start date (YYYY-MM-DD; a time of day is rejected)")
+    .option("--due <date>", "Due date (YYYY-MM-DD; a time of day is rejected)")
     .option("--archive", "Archive the sublist")
     .option("--unarchive", "Unarchive the sublist"))
     .action(async (oid: string, cmdOpts: {
@@ -123,23 +126,29 @@ export function registerSublistCommand(program: Command): void {
 
   sublist
     .command("add-task <sublist-oid> <task>")
-    .description("Add a task to a sublist. <task> = OID, slug/#N, or URL.")
-    .action(async (sublistOid: string, taskInput: string) => {
+    .description("Add a task, with its subtasks, to a sublist. <task> = OID, slug/#N, or URL.")
+    .option("--single", "Add the task alone, without its subtasks")
+    .action(async (sublistOid: string, taskInput: string, cmdOpts: { single?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const taskOid = await resolveTaskOid(client, taskInput);
-      const s = await client.updateSublistMembership(sublistOid, [{ task: taskOid }]);
+      const s = await client.updateSublistMembership(sublistOid, [
+        { task: taskOid, ...(cmdOpts.single === true ? { single: true } : {}) },
+      ]);
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 
   sublist
     .command("remove-task <sublist-oid> <task>")
-    .description("Remove a task from a sublist. <task> = OID, slug/#N, or URL.")
-    .action(async (sublistOid: string, taskInput: string) => {
+    .description("Remove a task, with its subtasks, from a sublist. <task> = OID, slug/#N, or URL.")
+    .option("--single", "Remove the task alone; its subtasks stay")
+    .action(async (sublistOid: string, taskInput: string, cmdOpts: { single?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const taskOid = await resolveTaskOid(client, taskInput);
-      const s = await client.updateSublistMembership(sublistOid, [{ task: taskOid, exclude: true }]);
+      const s = await client.updateSublistMembership(sublistOid, [
+        { task: taskOid, exclude: true, ...(cmdOpts.single === true ? { single: true } : {}) },
+      ]);
       renderObject(s, root, { fields: SUBLIST_FIELDS, toId: (s) => s.oid });
     });
 

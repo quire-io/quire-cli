@@ -19,10 +19,12 @@ describe("parseRecurrence", () => {
     ).toThrowError(/daily \| weekly \| monthly \| yearly/);
   });
 
-  it("requires --recurrence-interval when any other flag is set", () => {
-    expect(() =>
-      parseRecurrence({ recurrenceFreq: "daily" }),
-    ).toThrowError(/recurrence-interval is required/);
+  it("leaves interval off when --recurrence-interval is not given (Quire defaults it to 1)", () => {
+    expect(parseRecurrence({ recurrenceFreq: "daily" })).toEqual({ freq: "daily" });
+    expect(parseRecurrence({ recurrenceFreq: "weekly", recurrenceByweekday: "1" })).toEqual({
+      freq: "weekly",
+      byweekday: 1,
+    });
   });
 
   it("rejects non-positive interval", () => {

@@ -15,6 +15,7 @@ import { confirmDestructive } from "../util/confirm.js";
 import { withCreator, withCreatorInItems } from "../util/followers.js";
 import { parseRecurrence } from "../util/recurrence.js";
 import type { RecurrenceFlags } from "../util/recurrence.js";
+import { resolveSourceRef } from "../util/source-ref.js";
 import { resolveTaskOid } from "../util/task-id.js";
 import { resolveTextInput } from "../util/text-input.js";
 
@@ -27,6 +28,13 @@ import { resolveTextInput } from "../util/text-input.js";
  */
 const FOLLOWER_VALUE_HINT = "OID, ID, email, 'me', 'app', or 'inherit'";
 
+// The example puts `text` first: since the Oct 30 2026 server release Quire
+// rejects as "too big" a sourceRef where a nested object or list comes before
+// a key with a string value, however small.
+const SOURCE_REF_HELP =
+  `JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file'`;
+const PARTNER_HELP = "Share the task with one of the project's external teams (name or OID)";
+
 const ATTACHMENT_FIELDS = [
   { label: "Name", get: (a: { name: string }) => a.name },
   { label: "URL", get: (a: { url: string }) => a.url },
@@ -38,7 +46,7 @@ const ATTACHMENT_FIELDS = [
 function addRecurrenceOptions(cmd: Command): Command {
   return cmd
     .option("--recurrence-freq <freq>", "Recurrence: daily | weekly | monthly | yearly")
-    .option("--recurrence-interval <n>", "Recurrence: positive integer (every N freq-units)")
+    .option("--recurrence-interval <n>", "Recurrence: positive integer, every N freq-units (default 1)")
     .option("--recurrence-byweekday <days>", "Recurrence: comma-separated day numbers 0-6 (0=Sun)")
     .option("--recurrence-until <date>", "Recurrence: ISO 8601 / YYYY-MM-DD end date");
 }
@@ -121,6 +129,7 @@ interface SearchOpts {
   tag?: string;
   status?: string;
   priority?: string;
+  sourceRef?: string;
   limit?: string;
 }
 
@@ -232,6 +241,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--tag <tag>", "Filter by tag.")
     .option("--status <status>", "Filter: 'active' / 'completed' / numeric 0-100.")
     .option("--priority <priority>", "Filter: low / medium / high / urgent or -1 / 0 / 1 / 2.")
+    .option("--source-ref <key>", "Only tasks whose source ref has this key, such as an app's name.")
     .option("--limit <n>", "Page size.")
     .action(async (query: string, cmdOpts: SearchOpts) => {
       const root = program.opts<GlobalOpts>();
@@ -244,6 +254,7 @@ export function registerTaskCommand(program: Command): void {
         ...(cmdOpts.tag ? { tag: cmdOpts.tag } : {}),
         ...(cmdOpts.status ? { status: cmdOpts.status } : {}),
         ...(cmdOpts.priority ? { priority: cmdOpts.priority } : {}),
+        ...(cmdOpts.sourceRef ? { sourceRef: cmdOpts.sourceRef } : {}),
         ...(cmdOpts.limit ? { limit: parseLimit(cmdOpts.limit) } : {}),
       };
 
@@ -330,12 +341,14 @@ export function registerTaskCommand(program: Command): void {
     .option("--assignee <user>", "Assignee (OID, id, or email); repeat for multiple", append, [] as string[])
     .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple. You follow the new task either way`, append, [] as string[])
     .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
+    .option("--partner <team>", PARTNER_HELP)
+    .option("--source-ref <json>", SOURCE_REF_HELP)
     .option("--parent <id>", "Create as a subtask of this parent task")
     .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
     .option("--position <pos>", "Used with --sibling: 'before' or 'after'"))
     .action(async (project: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
-      assignee?: string[]; follower?: string[]; tag?: string[];
+      assignee?: string[]; follower?: string[]; tag?: string[]; partner?: string; sourceRef?: string;
       parent?: string; sibling?: string; position?: string;
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
@@ -346,6 +359,7 @@ export function registerTaskCommand(program: Command): void {
       }
 
       const recurrence = parseRecurrence(cmdOpts);
+      const sourceRef = cmdOpts.sourceRef !== undefined ? await resolveSourceRef(cmdOpts.sourceRef) : undefined;
       const body = {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -355,6 +369,8 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
         followers: withCreator(cmdOpts.follower),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+        ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
+        ...(sourceRef !== undefined ? { sourceRef } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };
 
@@ -387,15 +403,18 @@ export function registerTaskCommand(program: Command): void {
     .option("--start <date>")
     .option("--assignee <user>", "Repeat for multiple", append, [] as string[])
     .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple. You follow the new task either way`, append, [] as string[])
-    .option("--tag <tag>", "Repeat for multiple", append, [] as string[]))
+    .option("--tag <tag>", "Repeat for multiple", append, [] as string[])
+    .option("--partner <team>", PARTNER_HELP)
+    .option("--source-ref <json>", SOURCE_REF_HELP))
     .action(async (parentId: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
-      assignee?: string[]; follower?: string[]; tag?: string[];
+      assignee?: string[]; follower?: string[]; tag?: string[]; partner?: string; sourceRef?: string;
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       const parentOid = await resolveTaskOid(client, parentId);
       const recurrence = parseRecurrence(cmdOpts);
+      const sourceRef = cmdOpts.sourceRef !== undefined ? await resolveSourceRef(cmdOpts.sourceRef) : undefined;
       const t = await client.createSubtask(parentOid, {
         name: cmdOpts.name,
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -405,6 +424,8 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.assignee?.length ?? 0) > 0 ? { assignees: cmdOpts.assignee } : {}),
         followers: withCreator(cmdOpts.follower),
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
+        ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
+        ...(sourceRef !== undefined ? { sourceRef } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       });
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
@@ -428,6 +449,8 @@ export function registerTaskCommand(program: Command): void {
     .option("--remove-follower <user>", `Remove follower; repeat for multiple. 'inherit' drops the ones inherited from the parent`, append, [] as string[])
     .option("--add-successor <id>", "Repeat for multiple", append, [] as string[])
     .option("--remove-successor <id>", "Repeat for multiple", append, [] as string[])
+    .option("--partner <team>", `${PARTNER_HELP}. The API can't take a task off its team`)
+    .option("--source-ref <json>", `${SOURCE_REF_HELP}. Replaces the whole object, other apps' keys included; 'null' removes it`)
     .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[]))
     .action(async (id: string, cmdOpts: {
       name?: string; description?: string; status?: string; priority?: string;
@@ -436,6 +459,7 @@ export function registerTaskCommand(program: Command): void {
       addAssignee?: string[]; removeAssignee?: string[];
       follower?: string[]; addFollower?: string[]; removeFollower?: string[];
       addSuccessor?: string[]; removeSuccessor?: string[];
+      partner?: string; sourceRef?: string;
       customField?: string[];
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
@@ -457,6 +481,10 @@ export function registerTaskCommand(program: Command): void {
       }
 
       const recurrence = parseRecurrence(cmdOpts);
+      // The literal 'null' removes it, as on `task dates`.
+      let sourceRef: Record<string, unknown> | null | undefined;
+      if (cmdOpts.sourceRef === "null") sourceRef = null;
+      else if (cmdOpts.sourceRef !== undefined) sourceRef = await resolveSourceRef(cmdOpts.sourceRef);
       const body = {
         ...(cmdOpts.name !== undefined ? { name: cmdOpts.name } : {}),
         ...(cmdOpts.description !== undefined ? { description: cmdOpts.description } : {}),
@@ -473,6 +501,8 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.removeFollower?.length ?? 0) > 0 ? { removeFollowers: cmdOpts.removeFollower } : {}),
         ...((cmdOpts.addSuccessor?.length ?? 0) > 0 ? { addSuccessors: cmdOpts.addSuccessor } : {}),
         ...((cmdOpts.removeSuccessor?.length ?? 0) > 0 ? { removeSuccessors: cmdOpts.removeSuccessor } : {}),
+        ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
+        ...(sourceRef !== undefined ? { sourceRef } : {}),
         ...((cmdOpts.customField?.length ?? 0) > 0 ? { customFields: parseCustomFields(cmdOpts.customField) } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };

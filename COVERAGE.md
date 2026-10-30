@@ -5,7 +5,7 @@
 Every runnable `quire` command, with its flags. Generated from the commander tree in
 [`src/program.ts`](src/program.ts), so it cannot drift from what the CLI actually registers.
 
-Generated from 122 commands across 22 groups, with 367 flags.
+Generated from 122 commands across 22 groups, with 380 flags.
 
 Global flags apply to every command and are listed once at the end.
 
@@ -108,8 +108,8 @@ Update project metadata. Pass 'null' to --start / --due to clear.
 |---|---|
 | `--name <name>` | New name |
 | `--description <text>` | New description ('-' = stdin, '@file' = file) |
-| `--start <date>` | Start date or 'null' to clear |
-| `--due <date>` | Due date or 'null' to clear |
+| `--start <date>` | Start date (YYYY-MM-DD; a time of day is rejected) or 'null' to clear |
+| `--due <date>` | Due date (YYYY-MM-DD; a time of day is rejected) or 'null' to clear |
 | `--archive` | Archive the project |
 | `--unarchive` | Unarchive the project |
 | `--public` | Make the project public to the organization |
@@ -129,6 +129,8 @@ Export the entire project as CSV (default) or JSON. Writes to stdout unless --ou
 | Flag | Description |
 |---|---|
 | `--format <fmt>` | Export format: csv \| json |
+| `--status <status>` | Export only the 'active' or 'completed' tasks, or 'all' (the default) |
+| `--merge` | CSV only: put the values of a repeated column, such as every tag, in one column |
 | `--output <file>` | Write to this path instead of stdout (use '-' for stdout, the default) |
 
 ### `quire project approval-category add <project>`
@@ -180,11 +182,11 @@ Add a custom-field definition. Use --extra for type-specific config (JSON-parsed
 | `--edit-member <user>` | Only these users can edit the values, in Quire and through the API (OID, ID, email, or 'me'); repeat for multiple |
 | `--edit-members-admins-only` | Only the admins can edit the values |
 | `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
-| `--extra <kv>` | key=value; repeat for type-specific config (e.g. --extra options='[{...}]') |
+| `--extra <kv>` | key=value; repeat for type-specific config (e.g. --extra options='["Low","High"]' for a select field) |
 
 ### `quire project field update <project> <field-name>`
 
-Update a custom-field definition. Use `field rename` to rename it.
+Update a custom-field definition. Use `field rename` to rename it. A select field's --extra options='[{"name":"Urgent","from":"High"},{"name":"Low","color":"13"}]' replaces the whole set: 'from' renames that option and its tasks keep the value; an option no entry names is removed, and its tasks lose the value. An entry without 'color' keeps its color; options='[]' removes every option.
 
 | Flag | Description |
 |---|---|
@@ -203,7 +205,7 @@ Update a custom-field definition. Use `field rename` to rename it.
 | `--edit-members-anyone` | Lift the edit restriction |
 | `--locked` | Stop everyone, admins included, editing the values in Quire (API writes still go through) |
 | `--no-locked` | Allow editing the values in Quire again |
-| `--extra <kv>` | key=value; repeat for type-specific config |
+| `--extra <kv>` | key=value; repeat for type-specific config (JSON-parsed when possible) |
 
 ### `quire project field rename <project> <field-name>`
 
@@ -275,6 +277,7 @@ Search tasks by text. Scope with --project, --org, or --folder (one is required)
 | `--tag <tag>` | Filter by tag. |
 | `--status <status>` | Filter: 'active' / 'completed' / numeric 0-100. |
 | `--priority <priority>` | Filter: low / medium / high / urgent or -1 / 0 / 1 / 2. |
+| `--source-ref <key>` | Only tasks whose source ref has this key, such as an app's name. |
 | `--limit <n>` | Page size. |
 
 ### `quire task subtasks <id>`
@@ -305,11 +308,13 @@ Create a task in a project. Combine with --parent or --sibling+--position to nes
 | `--assignee <user>` | Assignee (OID, id, or email); repeat for multiple |
 | `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple. You follow the new task either way |
 | `--tag <tag>` | Tag; repeat for multiple |
+| `--partner <team>` | Share the task with one of the project's external teams (name or OID) |
+| `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file' |
 | `--parent <id>` | Create as a subtask of this parent task |
 | `--sibling <id>` | Create relative to this sibling task (use with --position) |
 | `--position <pos>` | Used with --sibling: 'before' or 'after' |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
-| `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
+| `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
 | `--recurrence-until <date>` | Recurrence: ISO 8601 / YYYY-MM-DD end date |
 
@@ -327,8 +332,10 @@ Create a subtask of an existing task. Alias for `task create --parent`.
 | `--assignee <user>` | Repeat for multiple |
 | `--follower <user>` | Follower (OID, ID, email, 'me', 'app', or 'inherit'); repeat for multiple. You follow the new task either way |
 | `--tag <tag>` | Repeat for multiple |
+| `--partner <team>` | Share the task with one of the project's external teams (name or OID) |
+| `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file' |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
-| `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
+| `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
 | `--recurrence-until <date>` | Recurrence: ISO 8601 / YYYY-MM-DD end date |
 
@@ -353,9 +360,11 @@ Update task fields. Pass any subset of flags.
 | `--remove-follower <user>` | Remove follower; repeat for multiple. 'inherit' drops the ones inherited from the parent |
 | `--add-successor <id>` | Repeat for multiple |
 | `--remove-successor <id>` | Repeat for multiple |
+| `--partner <team>` | Share the task with one of the project's external teams (name or OID). The API can't take a task off its team |
+| `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file'. Replaces the whole object, other apps' keys included; 'null' removes it |
 | `--custom-field <kv>` | key=value; repeat for multiple |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
-| `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
+| `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
 | `--recurrence-until <date>` | Recurrence: ISO 8601 / YYYY-MM-DD end date |
 
@@ -623,9 +632,10 @@ Create a sublist in a project.
 |---|---|
 | `--name <name>` | Sublist name (required) |
 | `--description <text>` | Sublist description |
-| `--start <date>` | Start date (YYYY-MM-DD) |
-| `--due <date>` | Due date (YYYY-MM-DD) |
+| `--start <date>` | Start date (YYYY-MM-DD; a time of day is rejected) |
+| `--due <date>` | Due date (YYYY-MM-DD; a time of day is rejected) |
 | `--include <task>` | Put this task, with all its subtasks, in the new sublist (OID, slug/#N, or URL); repeat for multiple |
+| `--all` | Put every task of the project in the new sublist; take some out with remove-task. Can't be changed later |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
 | `--members-admins-only` | Restrict visibility to the owner's admins (empty member list). Cannot be changed after creation. |
 | `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
@@ -638,8 +648,8 @@ Update a sublist's fields.
 |---|---|
 | `--name <name>` |  |
 | `--description <text>` |  |
-| `--start <date>` |  |
-| `--due <date>` |  |
+| `--start <date>` | Start date (YYYY-MM-DD; a time of day is rejected) |
+| `--due <date>` | Due date (YYYY-MM-DD; a time of day is rejected) |
 | `--archive` | Archive the sublist |
 | `--unarchive` | Unarchive the sublist |
 | `--private` | Hide from guests and from visitors of a public project or share link (only when visible to every member). |
@@ -647,11 +657,19 @@ Update a sublist's fields.
 
 ### `quire sublist add-task <sublist-oid> <task>`
 
-Add a task to a sublist. <task> = OID, slug/#N, or URL.
+Add a task, with its subtasks, to a sublist. <task> = OID, slug/#N, or URL.
+
+| Flag | Description |
+|---|---|
+| `--single` | Add the task alone, without its subtasks |
 
 ### `quire sublist remove-task <sublist-oid> <task>`
 
-Remove a task from a sublist. <task> = OID, slug/#N, or URL.
+Remove a task, with its subtasks, from a sublist. <task> = OID, slug/#N, or URL.
+
+| Flag | Description |
+|---|---|
+| `--single` | Remove the task alone; its subtasks stay |
 
 ### `quire sublist delete <oid>`
 
@@ -724,6 +742,7 @@ Update a comment. Pass --text to change the body, --pin / --unpin to toggle pinn
 | `--text <text>` | New comment text; '-' for stdin or '@file' for a file. |
 | `--pin` | Pin the comment. |
 | `--unpin` | Unpin the comment. |
+| `--as-app` | Record the app instead of you as the one who edited the text or pinned the comment. |
 
 ### `quire comment add-emoji <oid> <emoji>`
 
@@ -1069,9 +1088,9 @@ Create a reminder. --when is required unless the reminder is on a task that alre
 | `--when <iso8601>` | Fire time (UTC, ISO 8601). A bare YYYY-MM-DD means midnight UTC — there is no all-day reminder. |
 | `--lead <spec>` | Notify this far ahead: '<n>m' minutes, '<n>d' days, or '<n>d@HH:mm'; repeat for multiple (max 30). Omit for one notification at the fire time. |
 | `--name <text>` | Message shown instead of the default (Markdown); '-' for stdin or '@file' for a file |
-| `--partner <oid>` | Share with an external team. Project reminders only; cannot be combined with --member. |
+| `--partner <oid>` | Share with one of the project's external teams; on a task's reminder, the team the task is shared with. Project reminders only; cannot be combined with --member. |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
-| `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
+| `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
 | `--recurrence-until <date>` | Recurrence: ISO 8601 / YYYY-MM-DD end date |
 | `--member <user>` | Restrict visibility to this user (OID, ID, email, or 'me'); repeat for multiple. Omit for every member of the owner. Cannot be changed after creation. |
@@ -1088,7 +1107,7 @@ Update a reminder. Only --when / --recurrence-* / --lead / --name can be changed
 | `--name <text>` | New message, or 'null' to fall back to the default; '-' for stdin or '@file' for a file |
 | `--clear-recurrence` | Stop the reminder repeating |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
-| `--recurrence-interval <n>` | Recurrence: positive integer (every N freq-units) |
+| `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
 | `--recurrence-until <date>` | Recurrence: ISO 8601 / YYYY-MM-DD end date |
 

@@ -65,7 +65,8 @@ export function registerCommentCommand(program: Command): void {
     .option("--text <text>", "New comment text; '-' for stdin or '@file' for a file.")
     .option("--pin", "Pin the comment.")
     .option("--unpin", "Unpin the comment.")
-    .action(async (oid: string, cmdOpts: { text?: string; pin?: boolean; unpin?: boolean }) => {
+    .option("--as-app", "Record the app instead of you as the one who edited the text or pinned the comment.")
+    .action(async (oid: string, cmdOpts: { text?: string; pin?: boolean; unpin?: boolean; asApp?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
 
@@ -73,10 +74,11 @@ export function registerCommentCommand(program: Command): void {
         throw new ValidationError("Cannot combine --pin and --unpin.");
       }
 
-      const body: { description?: string; pinned?: boolean } = {};
+      const body: { description?: string; pinned?: boolean; asUser?: boolean } = {};
       if (cmdOpts.text !== undefined) body.description = await resolveTextInput(cmdOpts.text);
       if (cmdOpts.pin === true) body.pinned = true;
       if (cmdOpts.unpin === true) body.pinned = false;
+      if (cmdOpts.asApp === true) body.asUser = true;
 
       if (body.description === undefined && body.pinned === undefined) {
         throw new ValidationError("`comment update` requires at least one of --text / --pin / --unpin.");

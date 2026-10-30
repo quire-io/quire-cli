@@ -91,7 +91,9 @@ function resolveAccessList(
  * type for `addProjectField` / `addInsightField` etc. is `{ name, type,
  * [key: string]: unknown }`, so we let the user pass arbitrary type-specific
  * config via `--extra key=value` (JSON-parsed when possible — so
- * `--extra options='[{"label":"red"}]'` works for select-type fields).
+ * `--extra options='["Low","High"]'` works for a select field on add, and
+ * `options='[{"name":"Urgent","from":"High"}]'` on update, where each entry
+ * is a `QuireFieldOptionUpdate` and the list replaces the whole set).
  */
 export function buildFieldBody(flags: FieldFlags): Record<string, unknown> {
   const body: Record<string, unknown> = {};

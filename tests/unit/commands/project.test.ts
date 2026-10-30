@@ -122,7 +122,7 @@ describe("quire project export", () => {
     const program = makeRootProgram();
     registerProjectCommand(program);
     await program.parseAsync(["node", "test", "project", "export", "alpha-proj"]);
-    expect(exportProjectCsv).toHaveBeenCalledWith("p1");
+    expect(exportProjectCsv).toHaveBeenCalledWith("p1", {});
     expect(exportProjectJson).not.toHaveBeenCalled();
     expect(output()).toBe(csvBody);
   });
@@ -132,8 +132,36 @@ describe("quire project export", () => {
     const program = makeRootProgram();
     registerProjectCommand(program);
     await program.parseAsync(["node", "test", "project", "export", "alpha-proj", "--format", "json"]);
-    expect(exportProjectJson).toHaveBeenCalledWith("p1");
+    expect(exportProjectJson).toHaveBeenCalledWith("p1", {});
     expect(output()).toBe(jsonBody);
+  });
+
+  it("passes --status and --merge to the CSV export", async () => {
+    captureStdout();
+    const program = makeRootProgram();
+    registerProjectCommand(program);
+    await program.parseAsync(["node", "test", "project", "export", "alpha-proj", "--status", "completed", "--merge"]);
+    expect(exportProjectCsv).toHaveBeenCalledWith("p1", { status: "completed", merge: true });
+  });
+
+  it("passes --status to the JSON export", async () => {
+    captureStdout();
+    const program = makeRootProgram();
+    registerProjectCommand(program);
+    await program.parseAsync(["node", "test", "project", "export", "alpha-proj", "--format", "json", "--status", "active"]);
+    expect(exportProjectJson).toHaveBeenCalledWith("p1", { status: "active" });
+  });
+
+  it("rejects an unknown --status and --merge with --format json", async () => {
+    captureStdout();
+    const run = (argv: string[]): Promise<unknown> => {
+      const program = makeRootProgram();
+      registerProjectCommand(program);
+      return program.parseAsync(["node", "test", "project", "export", "alpha-proj", ...argv]);
+    };
+    await expect(run(["--status", "open"])).rejects.toThrow(/--status must be one of: active, completed, all/);
+    await expect(run(["--format", "json", "--merge"])).rejects.toThrow(/--merge applies to CSV only/);
+    expect(resolveProjectOid).not.toHaveBeenCalled();
   });
 
   it("rejects unknown --format with a ValidationError", async () => {

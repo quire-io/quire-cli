@@ -41,6 +41,7 @@ describe("quire comment", () => {
   let getTaskComments: ReturnType<typeof vi.fn>;
   let getComment: ReturnType<typeof vi.fn>;
   let addComment: ReturnType<typeof vi.fn>;
+  let updateComment: ReturnType<typeof vi.fn>;
   let addCommentEmojis: ReturnType<typeof vi.fn>;
   let removeCommentEmojis: ReturnType<typeof vi.fn>;
 
@@ -48,11 +49,12 @@ describe("quire comment", () => {
     getTaskComments = vi.fn().mockResolvedValue(comments);
     getComment = vi.fn().mockResolvedValue(comments[0]);
     addComment = vi.fn().mockResolvedValue(comments[0]);
+    updateComment = vi.fn().mockResolvedValue(comments[0]);
     addCommentEmojis = vi.fn().mockResolvedValue(undefined);
     removeCommentEmojis = vi.fn().mockResolvedValue(undefined);
     mockedResolveTask.mockResolvedValue("t1");
     mockedFactory.mockReturnValue({
-      getTaskComments, getComment, addComment, addCommentEmojis, removeCommentEmojis,
+      getTaskComments, getComment, addComment, updateComment, addCommentEmojis, removeCommentEmojis,
     } as never);
   });
 
@@ -116,6 +118,20 @@ describe("quire comment", () => {
       captureStdout();
       await run(["comment", "add", "proj/#1", "--text", "hi", "--pin", "--as-app"]);
       expect(addComment).toHaveBeenCalledWith("t1", "hi", { pinned: true, asUser: true });
+    });
+  });
+
+  describe("update", () => {
+    it("sends no asUser by default", async () => {
+      captureStdout();
+      await run(["comment", "update", "c1", "--text", "edited"]);
+      expect(updateComment).toHaveBeenCalledWith("c1", { description: "edited" });
+    });
+
+    it("maps --as-app to asUser", async () => {
+      captureStdout();
+      await run(["comment", "update", "c1", "--text", "edited", "--pin", "--as-app"]);
+      expect(updateComment).toHaveBeenCalledWith("c1", { description: "edited", pinned: true, asUser: true });
     });
   });
 

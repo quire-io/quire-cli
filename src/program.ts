@@ -94,22 +94,24 @@ Orgs / projects:
   quire project update <id>    Update name / description / dates / archive / public / followers (--follower / --add-follower / --remove-follower)
   quire project members <id>   List a project's members
   quire project export <id>    Export the project as CSV (default) or JSON (--format json [--output file])
+                               --status active|completed exports only those tasks; --merge (CSV) puts a repeated column's values in one
 
 Tasks (read):
   quire task list <project>    List tasks in a project ([--status active|completed|0-100])
   quire task get <id>          Show task details (id = OID, slug/#N, or URL)
   quire task tree <id>         Render the recursive subtree (default depth 3)
-  quire task search <query>    Search tasks; scope with --project / --org / --folder; filter with --assignee / --follower / --tag
+  quire task search <query>    Search tasks; scope with --project / --org / --folder; filter with --assignee / --follower / --tag / --source-ref
   quire task subtasks <id>     List a task's direct subtasks ([--status active|completed|0-100])
   quire task comments <id>     List a task's comments
   quire mine                   List tasks assigned to me; scope with --project / --inbox / --org / --all-orgs
 
 Tasks (write):
-  quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest; --assignee / --follower)
+  quire task create <project> --name "..."   Create a new task (--parent / --sibling+--position to nest; --assignee / --follower / --partner / --source-ref)
   quire task subtask <parent> --name "..."   Shorthand for "task create --parent"
   quire task update <id>                     Update fields: --name / --status / --priority / --add-tag / etc.
                                              Followers: --follower (full replace) / --add-follower / --remove-follower
                                              Follower values: OID, ID, email, 'me', 'app', or 'inherit' (the parent task's followers)
+                                             --partner <team> / --source-ref <json> ('null' removes the source ref)
   quire task complete <id> / uncomplete <id> Toggle status to 100 / 0
   quire task move <id> --to <id|root>        Re-parent within the same project
   quire task transfer <id> --to <project>    Cross-project transfer (--keep-tags / --keep-status / --invite)
@@ -165,10 +167,10 @@ Project metadata (write):
   quire tag create <project>      Create a tag (--name / --color)
   quire tag update <oid>          Update tag --name / --color
   quire tag delete <oid>          Delete a tag (prompts unless --yes)
-  quire sublist create <project>      Create a sublist (--name / --description / --start / --due / --include / --member / --members-admins-only / --private)
+  quire sublist create <project>      Create a sublist (--name / --description / --start / --due / --include / --all / --member / --members-admins-only / --private)
   quire sublist update <oid>          Update sublist (--name / --description / --start / --due / --archive / --unarchive / --private / --no-private)
-  quire sublist add-task <oid> <task> Add a task to a sublist
-  quire sublist remove-task <oid> <task>  Remove a task from a sublist
+  quire sublist add-task <oid> <task> Add a task, with its subtasks, to a sublist (--single: the task alone)
+  quire sublist remove-task <oid> <task>  Remove a task, with its subtasks, from a sublist (--single: the task alone)
   quire sublist delete <oid>          Delete a sublist (prompts unless --yes)
   quire sublist undo-remove <oid>     Restore a deleted sublist
   quire status create <project>   Create a status (--name / --value / --color)
@@ -184,7 +186,7 @@ Comments / chats / docs / insights / dashboards (read):
 
 Comments (write):
   quire comment add <task> --text "..."   Add a comment ('-' = stdin, '@file' = read file) [--pin / --as-app]
-  quire comment update <oid>              Update --text and/or --pin / --unpin
+  quire comment update <oid>              Update --text and/or --pin / --unpin [--as-app]
   quire comment add-emoji <oid> <emoji...>     Add your reactions to a task or chat comment (emoji or shortcode: +1, tada, :heart:)
   quire comment remove-emoji <oid> <emoji...>  Remove your reactions
   quire comment attach <oid> <file>       Attach a file to a comment ('-' = stdin; --filename / --content-type optional)

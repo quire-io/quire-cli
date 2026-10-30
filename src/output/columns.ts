@@ -34,6 +34,9 @@ export const TASK_GET_FIELDS: KeyValueField<QuireTask>[] = [
   { label: "Predecessors", get: (t) => formatTaskRefs(t.predecessorRefs) },
   { label: "Successors", get: (t) => formatTaskRefs(t.successorRefs) },
   { label: "Followers", get: (t) => t.followers?.map((f) => f.name).join(", ") },
+  { label: "Partner", get: (t) => t.partner?.name },
+  // A JSON object (api-client 1.2.6), shown as stored.
+  { label: "Source ref", get: (t) => (t.sourceRef !== undefined ? JSON.stringify(t.sourceRef) : undefined) },
   { label: "Description", get: (t) => t.descriptionText },
   { label: "URL", get: (t) => t.url },
   { label: "Created at", get: (t) => t.createdAt },
