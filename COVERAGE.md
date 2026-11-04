@@ -5,7 +5,7 @@
 Every runnable `quire` command, with its flags. Generated from the commander tree in
 [`src/program.ts`](src/program.ts), so it cannot drift from what the CLI actually registers.
 
-Generated from 122 commands across 22 groups, with 380 flags.
+Generated from 122 commands across 22 groups, with 385 flags.
 
 Global flags apply to every command and are listed once at the end.
 
@@ -131,6 +131,7 @@ Export the entire project as CSV (default) or JSON. Writes to stdout unless --ou
 | `--format <fmt>` | Export format: csv \| json |
 | `--status <status>` | Export only the 'active' or 'completed' tasks, or 'all' (the default) |
 | `--merge` | CSV only: put the values of a repeated column, such as every tag, in one column |
+| `--comments` | CSV only: add each task's comments, oldest first, one per column (all in one with --merge); comments without text are left out |
 | `--output <file>` | Write to this path instead of stdout (use '-' for stdout, the default) |
 
 ### `quire project approval-category add <project>`
@@ -310,6 +311,7 @@ Create a task in a project. Combine with --parent or --sibling+--position to nes
 | `--tag <tag>` | Tag; repeat for multiple |
 | `--partner <team>` | Share the task with one of the project's external teams (name or OID) |
 | `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file' |
+| `--peekaboo [when]` | Hide the task (peekaboo): with no value indefinitely, for a number of days (1-10000), or until a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time |
 | `--parent <id>` | Create as a subtask of this parent task |
 | `--sibling <id>` | Create relative to this sibling task (use with --position) |
 | `--position <pos>` | Used with --sibling: 'before' or 'after' |
@@ -334,6 +336,7 @@ Create a subtask of an existing task. Alias for `task create --parent`.
 | `--tag <tag>` | Repeat for multiple |
 | `--partner <team>` | Share the task with one of the project's external teams (name or OID) |
 | `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file' |
+| `--peekaboo [when]` | Hide the task (peekaboo): with no value indefinitely, for a number of days (1-10000), or until a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
 | `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
 | `--recurrence-byweekday <days>` | Recurrence: comma-separated day numbers 0-6 (0=Sun) |
@@ -362,6 +365,7 @@ Update task fields. Pass any subset of flags.
 | `--remove-successor <id>` | Repeat for multiple |
 | `--partner <team>` | Share the task with one of the project's external teams (name or OID). The API can't take a task off its team |
 | `--source-ref <json>` | JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file'. Replaces the whole object, other apps' keys included; 'null' removes it |
+| `--peekaboo [when]` | Hide the task (peekaboo): with no value indefinitely, for a number of days (1-10000), or until a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time. 'false' shows it again, with its hidden ancestors and descendants. Hiding a hidden task changes nothing, its reshow time included |
 | `--custom-field <kv>` | key=value; repeat for multiple |
 | `--recurrence-freq <freq>` | Recurrence: daily \| weekly \| monthly \| yearly |
 | `--recurrence-interval <n>` | Recurrence: positive integer, every N freq-units (default 1) |
@@ -410,12 +414,13 @@ Set or clear task start / due dates. Pass 'null' to clear a date.
 
 ### `quire task peekaboo <id>`
 
-Hide (peekaboo) a task. --reshow-at <ISO 8601> sets a re-show time; --show un-hides.
+Hide (peekaboo) a task: indefinitely, for --days, or until --reshow-at; --show un-hides it. Hiding a hidden task changes nothing, its reshow time included: --show it first.
 
 | Flag | Description |
 |---|---|
-| `--reshow-at <iso8601>` | Reshow at this ISO 8601 timestamp (omit to hide indefinitely) |
-| `--show` | Un-hide the task instead of hiding it |
+| `--days <n>` | Hide it for this many days (1-10000) |
+| `--reshow-at <when>` | Hide it until then: a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time |
+| `--show` | Un-hide the task, along with its hidden ancestors and descendants |
 
 ### `quire task delete <id>`
 

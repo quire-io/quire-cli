@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Follows the Nov 3 2026 server release through `@quire-io/api-client` 1.2.7.
+
+- **`project export --comments`** (CSV only) adds each task's comments, oldest first, as `<author>, <when>:` and the text on the next line. Each is in a column of its own, or with `--merge` all of a task's in one, separated by a blank line. Comments without text are left out.
+- **`--peekaboo [when]` on tasks** — `task create`, `task subtask` and `task update` hide the task: with no value indefinitely, `--peekaboo 7` for 7 days (up to 10000), and `--peekaboo 2026-11-10` or `--peekaboo 2026-11-10T09:30:00Z` until then. A date only is 6 AM that day in your Quire time zone. On `task update`, `--peekaboo false` shows the task again.
+- **`task peekaboo --days <n>`** hides the task for that many days. `--reshow-at` also takes a date only, for 6 AM that day in your Quire time zone; it used to be midnight UTC.
+    - Hiding a task that is already hidden changes nothing, its reshow time included. `--show` it first; the help says so.
+- **What Quire changed on its side** (no CLI change): `task peekaboo --show` works, where it was 500, and shows the task's hidden ancestors and descendants along with it.
+- Bumps `@quire-io/api-client` to `^1.2.7`.
+
 ## 1.1.5 — 2026-10-30
 
 Follows the Oct 30 2026 server release through `@quire-io/api-client` 1.2.6.

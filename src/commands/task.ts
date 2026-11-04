@@ -13,6 +13,7 @@ import { resolveAttachInput } from "../util/attach-input.js";
 import { readBulkItems, readBulkRefs } from "../util/bulk-input.js";
 import { confirmDestructive } from "../util/confirm.js";
 import { withCreator, withCreatorInItems } from "../util/followers.js";
+import { parsePeekaboo, parsePeekabooDays, parsePeekabooReshowAt } from "../util/peekaboo.js";
 import { parseRecurrence } from "../util/recurrence.js";
 import type { RecurrenceFlags } from "../util/recurrence.js";
 import { resolveSourceRef } from "../util/source-ref.js";
@@ -34,6 +35,8 @@ const FOLLOWER_VALUE_HINT = "OID, ID, email, 'me', 'app', or 'inherit'";
 const SOURCE_REF_HELP =
   `JSON object stored with the task: 'text' is the Markdown Quire shows as its source line, and your app's data goes under a key named after it, e.g. '{"text":"From [issue 42](https://…)","github":{"issue":42}}'. '-' for stdin or '@file'`;
 const PARTNER_HELP = "Share the task with one of the project's external teams (name or OID)";
+const PEEKABOO_HELP =
+  "Hide the task (peekaboo): with no value indefinitely, for a number of days (1-10000), or until a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time";
 
 const ATTACHMENT_FIELDS = [
   { label: "Name", get: (a: { name: string }) => a.name },
@@ -343,13 +346,14 @@ export function registerTaskCommand(program: Command): void {
     .option("--tag <tag>", "Tag; repeat for multiple", append, [] as string[])
     .option("--partner <team>", PARTNER_HELP)
     .option("--source-ref <json>", SOURCE_REF_HELP)
+    .option("--peekaboo [when]", PEEKABOO_HELP)
     .option("--parent <id>", "Create as a subtask of this parent task")
     .option("--sibling <id>", "Create relative to this sibling task (use with --position)")
     .option("--position <pos>", "Used with --sibling: 'before' or 'after'"))
     .action(async (project: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
       assignee?: string[]; follower?: string[]; tag?: string[]; partner?: string; sourceRef?: string;
-      parent?: string; sibling?: string; position?: string;
+      peekaboo?: string | true; parent?: string; sibling?: string; position?: string;
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
@@ -359,6 +363,7 @@ export function registerTaskCommand(program: Command): void {
       }
 
       const recurrence = parseRecurrence(cmdOpts);
+      const peekaboo = cmdOpts.peekaboo !== undefined ? parsePeekaboo(cmdOpts.peekaboo, "--peekaboo") : undefined;
       const sourceRef = cmdOpts.sourceRef !== undefined ? await resolveSourceRef(cmdOpts.sourceRef) : undefined;
       const body = {
         name: cmdOpts.name,
@@ -371,6 +376,7 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...(sourceRef !== undefined ? { sourceRef } : {}),
+        ...(peekaboo !== undefined ? { peekaboo } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };
 
@@ -405,15 +411,18 @@ export function registerTaskCommand(program: Command): void {
     .option("--follower <user>", `Follower (${FOLLOWER_VALUE_HINT}); repeat for multiple. You follow the new task either way`, append, [] as string[])
     .option("--tag <tag>", "Repeat for multiple", append, [] as string[])
     .option("--partner <team>", PARTNER_HELP)
-    .option("--source-ref <json>", SOURCE_REF_HELP))
+    .option("--source-ref <json>", SOURCE_REF_HELP)
+    .option("--peekaboo [when]", PEEKABOO_HELP))
     .action(async (parentId: string, cmdOpts: {
       name: string; description?: string; priority?: string; due?: string; start?: string;
       assignee?: string[]; follower?: string[]; tag?: string[]; partner?: string; sourceRef?: string;
+      peekaboo?: string | true;
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
-      const parentOid = await resolveTaskOid(client, parentId);
       const recurrence = parseRecurrence(cmdOpts);
+      const peekaboo = cmdOpts.peekaboo !== undefined ? parsePeekaboo(cmdOpts.peekaboo, "--peekaboo") : undefined;
+      const parentOid = await resolveTaskOid(client, parentId);
       const sourceRef = cmdOpts.sourceRef !== undefined ? await resolveSourceRef(cmdOpts.sourceRef) : undefined;
       const t = await client.createSubtask(parentOid, {
         name: cmdOpts.name,
@@ -426,6 +435,7 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.tag?.length ?? 0) > 0 ? { tags: cmdOpts.tag } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...(sourceRef !== undefined ? { sourceRef } : {}),
+        ...(peekaboo !== undefined ? { peekaboo } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       });
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
@@ -451,6 +461,7 @@ export function registerTaskCommand(program: Command): void {
     .option("--remove-successor <id>", "Repeat for multiple", append, [] as string[])
     .option("--partner <team>", `${PARTNER_HELP}. The API can't take a task off its team`)
     .option("--source-ref <json>", `${SOURCE_REF_HELP}. Replaces the whole object, other apps' keys included; 'null' removes it`)
+    .option("--peekaboo [when]", `${PEEKABOO_HELP}. 'false' shows it again, with its hidden ancestors and descendants. Hiding a hidden task changes nothing, its reshow time included`)
     .option("--custom-field <kv>", "key=value; repeat for multiple", append, [] as string[]))
     .action(async (id: string, cmdOpts: {
       name?: string; description?: string; status?: string; priority?: string;
@@ -459,7 +470,7 @@ export function registerTaskCommand(program: Command): void {
       addAssignee?: string[]; removeAssignee?: string[];
       follower?: string[]; addFollower?: string[]; removeFollower?: string[];
       addSuccessor?: string[]; removeSuccessor?: string[];
-      partner?: string; sourceRef?: string;
+      partner?: string; sourceRef?: string; peekaboo?: string | true;
       customField?: string[];
     } & RecurrenceFlags) => {
       const root = program.opts<GlobalOpts>();
@@ -468,6 +479,11 @@ export function registerTaskCommand(program: Command): void {
       if ((cmdOpts.follower?.length ?? 0) > 0 && ((cmdOpts.addFollower?.length ?? 0) > 0 || (cmdOpts.removeFollower?.length ?? 0) > 0)) {
         throw new ValidationError("Cannot combine --follower (full replace) with --add-follower / --remove-follower.");
       }
+
+      // The literal 'false' shows the task again, as `task peekaboo --show`.
+      let peekaboo: boolean | number | string | undefined;
+      if (cmdOpts.peekaboo === "false") peekaboo = false;
+      else if (cmdOpts.peekaboo !== undefined) peekaboo = parsePeekaboo(cmdOpts.peekaboo, "--peekaboo");
 
       const oid = await resolveTaskOid(client, id);
 
@@ -503,6 +519,7 @@ export function registerTaskCommand(program: Command): void {
         ...((cmdOpts.removeSuccessor?.length ?? 0) > 0 ? { removeSuccessors: cmdOpts.removeSuccessor } : {}),
         ...(cmdOpts.partner !== undefined ? { partner: cmdOpts.partner } : {}),
         ...(sourceRef !== undefined ? { sourceRef } : {}),
+        ...(peekaboo !== undefined ? { peekaboo } : {}),
         ...((cmdOpts.customField?.length ?? 0) > 0 ? { customFields: parseCustomFields(cmdOpts.customField) } : {}),
         ...(recurrence !== undefined ? { recurrence } : {}),
       };
@@ -609,29 +626,28 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("peekaboo <id>")
-    .description("Hide (peekaboo) a task. --reshow-at <ISO 8601> sets a re-show time; --show un-hides.")
-    .option("--reshow-at <iso8601>", "Reshow at this ISO 8601 timestamp (omit to hide indefinitely)")
-    .option("--show", "Un-hide the task instead of hiding it")
-    .action(async (id: string, cmdOpts: { reshowAt?: string; show?: boolean }) => {
+    .description(
+      "Hide (peekaboo) a task: indefinitely, for --days, or until --reshow-at; --show un-hides it. " +
+        "Hiding a hidden task changes nothing, its reshow time included: --show it first.",
+    )
+    .option("--days <n>", "Hide it for this many days (1-10000)")
+    .option("--reshow-at <when>", "Hide it until then: a date (6 AM that day in your Quire time zone) or an ISO 8601 date and time")
+    .option("--show", "Un-hide the task, along with its hidden ancestors and descendants")
+    .action(async (id: string, cmdOpts: { days?: string; reshowAt?: string; show?: boolean }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
+
+      const given = [cmdOpts.days !== undefined && "--days", cmdOpts.reshowAt !== undefined && "--reshow-at", cmdOpts.show === true && "--show"]
+        .filter((f): f is string => f !== false);
+      if (given.length > 1) {
+        throw new ValidationError(`${given.join(", ")} are mutually exclusive.`);
+      }
+
+      let peekaboo: boolean | number | string = cmdOpts.show === true ? false : true;
+      if (cmdOpts.days !== undefined) peekaboo = parsePeekabooDays(cmdOpts.days, "--days");
+      else if (cmdOpts.reshowAt !== undefined) peekaboo = parsePeekabooReshowAt(cmdOpts.reshowAt, "--reshow-at");
+
       const oid = await resolveTaskOid(client, id);
-
-      if (cmdOpts.show && cmdOpts.reshowAt !== undefined) {
-        throw new ValidationError("--show and --reshow-at are mutually exclusive.");
-      }
-
-      let peekaboo: boolean | number = cmdOpts.show ? false : true;
-      if (cmdOpts.reshowAt !== undefined) {
-        const ms = Date.parse(cmdOpts.reshowAt);
-        if (Number.isNaN(ms)) {
-          throw new ValidationError(`--reshow-at must be ISO 8601 (e.g. 2026-05-08T12:00:00Z); got "${cmdOpts.reshowAt}"`);
-        }
-        if (ms <= Date.now()) {
-          throw new ValidationError(`--reshow-at must be in the future; got "${cmdOpts.reshowAt}"`);
-        }
-        peekaboo = ms;
-      }
       const t = await client.updateTask(oid, { peekaboo });
       renderObject(t, root, { fields: TASK_GET_FIELDS, toId: (t) => t.oid });
     });

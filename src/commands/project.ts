@@ -158,8 +158,9 @@ export function registerProjectCommand(program: Command): void {
     .option("--format <fmt>", "Export format: csv | json", "csv")
     .option("--status <status>", "Export only the 'active' or 'completed' tasks, or 'all' (the default)")
     .option("--merge", "CSV only: put the values of a repeated column, such as every tag, in one column")
+    .option("--comments", "CSV only: add each task's comments, oldest first, one per column (all in one with --merge); comments without text are left out")
     .option("--output <file>", "Write to this path instead of stdout (use '-' for stdout, the default)")
-    .action(async (id: string, cmdOpts: { format: string; status?: string; merge?: boolean; output?: string }) => {
+    .action(async (id: string, cmdOpts: { format: string; status?: string; merge?: boolean; comments?: boolean; output?: string }) => {
       const root = program.opts<GlobalOpts>();
       const client = createQuireClient({ profile: root.profile });
       if (cmdOpts.format !== "csv" && cmdOpts.format !== "json") {
@@ -171,12 +172,19 @@ export function registerProjectCommand(program: Command): void {
       if (cmdOpts.merge === true && cmdOpts.format !== "csv") {
         throw new ValidationError("--merge applies to CSV only.");
       }
+      if (cmdOpts.comments === true && cmdOpts.format !== "csv") {
+        throw new ValidationError("--comments applies to CSV only.");
+      }
       const oid = await client.resolveProjectOid(id);
       const statusOption = cmdOpts.status !== undefined
         ? { status: cmdOpts.status as (typeof EXPORT_STATUSES)[number] }
         : {};
       const body = cmdOpts.format === "csv"
-        ? await client.exportProjectCsv(oid, { ...statusOption, ...(cmdOpts.merge === true ? { merge: true } : {}) })
+        ? await client.exportProjectCsv(oid, {
+          ...statusOption,
+          ...(cmdOpts.merge === true ? { merge: true } : {}),
+          ...(cmdOpts.comments === true ? { comments: true } : {}),
+        })
         : await client.exportProjectJson(oid, statusOption);
       if (cmdOpts.output !== undefined && cmdOpts.output !== "-") {
         writeFileSync(cmdOpts.output, body);

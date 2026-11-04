@@ -144,6 +144,14 @@ describe("quire project export", () => {
     expect(exportProjectCsv).toHaveBeenCalledWith("p1", { status: "completed", merge: true });
   });
 
+  it("passes --comments to the CSV export", async () => {
+    captureStdout();
+    const program = makeRootProgram();
+    registerProjectCommand(program);
+    await program.parseAsync(["node", "test", "project", "export", "alpha-proj", "--comments"]);
+    expect(exportProjectCsv).toHaveBeenCalledWith("p1", { comments: true });
+  });
+
   it("passes --status to the JSON export", async () => {
     captureStdout();
     const program = makeRootProgram();
@@ -152,7 +160,7 @@ describe("quire project export", () => {
     expect(exportProjectJson).toHaveBeenCalledWith("p1", { status: "active" });
   });
 
-  it("rejects an unknown --status and --merge with --format json", async () => {
+  it("rejects an unknown --status, and --merge or --comments with --format json", async () => {
     captureStdout();
     const run = (argv: string[]): Promise<unknown> => {
       const program = makeRootProgram();
@@ -161,6 +169,7 @@ describe("quire project export", () => {
     };
     await expect(run(["--status", "open"])).rejects.toThrow(/--status must be one of: active, completed, all/);
     await expect(run(["--format", "json", "--merge"])).rejects.toThrow(/--merge applies to CSV only/);
+    await expect(run(["--format", "json", "--comments"])).rejects.toThrow(/--comments applies to CSV only/);
     expect(resolveProjectOid).not.toHaveBeenCalled();
   });
 

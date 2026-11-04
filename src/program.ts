@@ -95,6 +95,7 @@ Orgs / projects:
   quire project members <id>   List a project's members
   quire project export <id>    Export the project as CSV (default) or JSON (--format json [--output file])
                                --status active|completed exports only those tasks; --merge (CSV) puts a repeated column's values in one
+                               --comments (CSV) adds each task's comments
 
 Tasks (read):
   quire task list <project>    List tasks in a project ([--status active|completed|0-100])
@@ -112,11 +113,12 @@ Tasks (write):
                                              Followers: --follower (full replace) / --add-follower / --remove-follower
                                              Follower values: OID, ID, email, 'me', 'app', or 'inherit' (the parent task's followers)
                                              --partner <team> / --source-ref <json> ('null' removes the source ref)
+                                             --peekaboo [days|date] hides it ('false' shows it again); create / subtask take it too
   quire task complete <id> / uncomplete <id> Toggle status to 100 / 0
   quire task move <id> --to <id|root>        Re-parent within the same project
   quire task transfer <id> --to <project>    Cross-project transfer (--keep-tags / --keep-status / --invite)
   quire task dates <id> --start ... --due ... Set / clear dates (pass 'null' to clear)
-  quire task peekaboo <id> [--reshow-at ISO | --show] Hide or un-hide a task
+  quire task peekaboo <id> [--days N | --reshow-at DATE | --show] Hide or un-hide a task
   quire task delete <id>                     Delete a task (prompts unless --yes)
   quire task undo-remove <oid>               Restore a deleted task
   quire task attach <id> <file>              Attach a file to a task ('-' = stdin; --filename / --content-type optional)
