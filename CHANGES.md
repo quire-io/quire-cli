@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.7 — 2026-11-26
+
+Follows the Nov 6, Nov 13, Nov 18 and Nov 24 2026 server releases through `@quire-io/api-client` 1.2.8.
+
+- **`tag update --global` / `--project`** moves a tag between scopes. `--global` makes it available across the organization's projects; `--project <project>` (OID, slug, or URL) restricts it to that one project. The two are mutually exclusive — passing both is rejected before the request. `tag get` / `create` / `update` gain a Global line.
+- **What Quire changed on its side** (no CLI change):
+    - A project's custom-field definitions now carry `editable`: whether you can set that field's values through the API. The CLI has no field-definition listing, so it appears only under `--json`, on the `fields` of `project get`. (The Nov 18 release added it as `valueEditable`; Nov 24 renamed it to `editable`, keeping `valueEditable` as an alias for now.)
+    - A webhook's `taskSummaries` tasks also carry `nameText` / `nameHtml` and `descriptionText` / `descriptionHtml`; the client doesn't model webhook payloads.
+    - `task update` with `createdAt` or `createdBy` is now 400; the CLI's `task update` never offered either.
+- Bumps `@quire-io/api-client` to `^1.2.8`.
+
 ## 1.1.6 — 2026-11-04
 
 Follows the Nov 3 2026 server release through `@quire-io/api-client` 1.2.7.
