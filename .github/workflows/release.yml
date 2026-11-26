@@ -28,13 +28,13 @@ jobs:
       matrix:
         include:
           - name: darwin-arm64
-            runner: macos-14 # Apple silicon runner
+            runner: macos-15 # Apple silicon runner
             platform: darwin
             arch: arm64
             output: quire-darwin-arm64
             sign: true
           - name: darwin-x64
-            runner: macos-14 # cross-compile from Apple silicon — macos-13 Intel pool has long queue times.
+            runner: macos-15 # cross-compile from Apple silicon — macos-13 Intel pool has long queue times.
             platform: darwin
             arch: x64
             output: quire-darwin-x64
