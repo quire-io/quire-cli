@@ -22,6 +22,7 @@ function normalizeColor(input: string | undefined): string | undefined {
 const TAG_FIELDS = [
   { label: "Name", get: (t: { nameText?: string; name: string }) => t.nameText ?? t.name },
   { label: "Color", get: (t: { color?: string }) => longColor(t.color) },
+  { label: "Global", get: (t: { global?: boolean }) => (t.global === true ? "yes" : undefined) },
   { label: "OID", get: (t: { oid: string }) => t.oid },
   { label: "URL", get: (t: { url?: string }) => t.url },
 ];
@@ -76,22 +77,50 @@ export function registerTagCommand(program: Command): void {
 
   tag
     .command("update <oid>")
-    .description("Update a tag's name and/or color.")
+    .description("Update a tag's name, color, or scope.")
     .option("--name <name>", "New name")
     .option("--color <color>", "New color: name or 2-digit code")
-    .action(async (oid: string, cmdOpts: { name?: string; color?: string }) => {
-      const root = program.opts<GlobalOpts>();
-      const client = createQuireClient({ profile: root.profile });
-      const color = normalizeColor(cmdOpts.color);
-      const body: { name?: string; color?: string } = {};
-      if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
-      if (color !== undefined) body.color = color;
-      if (body.name === undefined && body.color === undefined) {
-        throw new ValidationError("`tag update` requires at least one of --name or --color.");
-      }
-      const t = await client.updateTag(oid, body);
-      renderObject(t, root, { fields: TAG_FIELDS, toId: (t) => t.oid });
-    });
+    .option("--global", "Make the tag global: available across the organization's projects.")
+    .option(
+      "--project <project>",
+      "Make the tag project-scoped: restrict it to this project. <project> = OID, slug, or URL.",
+    )
+    .action(
+      async (
+        oid: string,
+        cmdOpts: { name?: string; color?: string; global?: boolean; project?: string },
+      ) => {
+        const root = program.opts<GlobalOpts>();
+        const client = createQuireClient({ profile: root.profile });
+        if (cmdOpts.global === true && cmdOpts.project !== undefined) {
+          throw new ValidationError(
+            "`tag update` takes either --global or --project, not both.",
+          );
+        }
+        const color = normalizeColor(cmdOpts.color);
+        const body: { name?: string; color?: string; global?: boolean; project?: string } = {};
+        if (cmdOpts.name !== undefined) body.name = cmdOpts.name;
+        if (color !== undefined) body.color = color;
+        if (cmdOpts.global === true) {
+          body.global = true;
+        } else if (cmdOpts.project !== undefined) {
+          body.global = false;
+          body.project = await client.resolveProjectOid(cmdOpts.project);
+        }
+        if (
+          body.name === undefined &&
+          body.color === undefined &&
+          body.global === undefined &&
+          body.project === undefined
+        ) {
+          throw new ValidationError(
+            "`tag update` requires at least one of --name, --color, --global, or --project.",
+          );
+        }
+        const t = await client.updateTag(oid, body);
+        renderObject(t, root, { fields: TAG_FIELDS, toId: (t) => t.oid });
+      },
+    );
 
   tag
     .command("delete <oid>")

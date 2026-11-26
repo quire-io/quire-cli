@@ -5,7 +5,7 @@
 Every runnable `quire` command, with its flags. Generated from the commander tree in
 [`src/program.ts`](src/program.ts), so it cannot drift from what the CLI actually registers.
 
-Generated from 122 commands across 22 groups, with 385 flags.
+Generated from 122 commands across 22 groups, with 387 flags.
 
 Global flags apply to every command and are listed once at the end.
 
@@ -608,12 +608,14 @@ Create a tag in a project.
 
 ### `quire tag update <oid>`
 
-Update a tag's name and/or color.
+Update a tag's name, color, or scope.
 
 | Flag | Description |
 |---|---|
 | `--name <name>` | New name |
 | `--color <color>` | New color: name or 2-digit code |
+| `--global` | Make the tag global: available across the organization's projects. |
+| `--project <project>` | Make the tag project-scoped: restrict it to this project. <project> = OID, slug, or URL. |
 
 ### `quire tag delete <oid>`
 
